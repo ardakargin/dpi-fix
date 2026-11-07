@@ -1,0 +1,13 @@
+# Derleme çıktıları depoda tutuluyor (hazır kullanım için):
+#   DpiFix.exe, Setup.exe, selftest.exe
+# Kaynaktan üretmek için: build.cmd
+
+*.user
+*.suo
+*.pdb
+*.ilk
+.vs/
+.vscode/
+Thumbs.db
+desktop.ini
+.DS_Store

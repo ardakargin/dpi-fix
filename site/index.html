@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="tr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>DPI Fix - Windows İçin Sansürsüz &amp; Kesintisiz İnternet</title>
+<meta content="Türkiye'de DPI ve DNS zorlamasını kaldıran Windows uygulaması. Tek kurulum, kalıcı servis, sitelerinizi bozmaz." name="description"/>
+<meta content="DPI Fix - Tek tıkla, engelsiz internet" property="og:title"/>
+<meta content="GoodbyeDPI tabanlı, tek yapılandırmalı, Windows servisi olarak çalışan DPI atlatma aracı." property="og:description"/>
+<meta content="assets/og.png" property="og:image"/>
+<meta content="website" property="og:type"/>
+<link href="assets/favicon.png" rel="icon"/>
+
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "tertiary-container": "#ffad3a",
+            "on-primary-fixed-variant": "#005047",
+            "primary-fixed": "#62fae3",
+            "on-tertiary-fixed-variant": "#653e00",
+            "primary-fixed-dim": "#3cddc7",
+            "primary-container": "#2dd4bf",
+            "inverse-surface": "#e1e2ea",
+            "secondary-fixed": "#c4e7ff",
+            "outline": "#859490",
+            "primary": "#57f1db",
+            "tertiary": "#ffd29f",
+            "on-primary-container": "#00574d",
+            "on-error-container": "#ffdad6",
+            "background": "#080b10",
+            "on-surface-variant": "#bacac5",
+            "inverse-on-surface": "#2d3036",
+            "on-primary-fixed": "#00201c",
+            "on-tertiary": "#472a00",
+            "on-error": "#690005",
+            "surface-dim": "#080b10",
+            "secondary-container": "#00a6e0",
+            "inverse-primary": "#006b5f",
+            "on-secondary-fixed": "#001e2c",
+            "on-primary": "#003731",
+            "secondary": "#7bd0ff",
+            "on-background": "#e1e2ea",
+            "on-tertiary-container": "#6d4400",
+            "surface-container": "#111a24",
+            "error-container": "#93000a",
+            "surface-container-lowest": "#080b10",
+            "tertiary-fixed": "#ffddb8",
+            "surface-variant": "#162230",
+            "surface-container-highest": "#1e2a38",
+            "on-secondary-container": "#00374d",
+            "surface": "#111a24",
+            "on-tertiary-fixed": "#2a1700",
+            "surface-tint": "#3cddc7",
+            "surface-container-low": "#0d131a",
+            "on-secondary-fixed-variant": "#004c69",
+            "on-surface": "#f8fafc",
+            "tertiary-fixed-dim": "#ffb95f",
+            "on-secondary": "#00354a",
+            "error": "#f59e0b",
+            "surface-bright": "#1e2a38",
+            "outline-variant": "#1e2a38",
+            "surface-container-high": "#162230",
+            "secondary-fixed-dim": "#7bd0ff"
+          },
+          borderRadius: {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "card": "14px",
+            "full": "9999px"
+          },
+          spacing: {
+            "space-lg": "16px",
+            "space-xs": "4px",
+            "space-xl": "24px",
+            "space-md": "12px",
+            "margin": "16px",
+            "gutter": "12px",
+            "space-sm": "8px"
+          },
+          fontFamily: {
+            "label-code": ["JetBrains Mono", "monospace"],
+            "headline-xl": ["Inter", "sans-serif"],
+            "body-md": ["Inter", "sans-serif"],
+            "label-caps": ["Inter", "sans-serif"],
+            "headline-lg": ["Inter", "sans-serif"],
+            "headline-md": ["Inter", "sans-serif"],
+            "metric-display": ["JetBrains Mono", "monospace"],
+            "body-lg": ["Inter", "sans-serif"]
+          },
+          fontSize: {
+            "label-code": ["12px", { lineHeight: "16px", letterSpacing: "0em", fontWeight: "500" }],
+            "headline-xl": ["32px", { lineHeight: "38px", letterSpacing: "-0.03em", fontWeight: "600" }],
+            "body-md": ["13px", { lineHeight: "18px", letterSpacing: "-0.005em", fontWeight: "400" }],
+            "label-caps": ["11px", { lineHeight: "14px", letterSpacing: "0.06em", fontWeight: "600" }],
+            "headline-lg": ["24px", { lineHeight: "30px", letterSpacing: "-0.025em", fontWeight: "600" }],
+            "headline-md": ["18px", { lineHeight: "24px", letterSpacing: "-0.02em", fontWeight: "600" }],
+            "metric-display": ["20px", { lineHeight: "24px", letterSpacing: "-0.02em", fontWeight: "600" }],
+            "body-lg": ["15px", { lineHeight: "22px", letterSpacing: "-0.01em", fontWeight: "400" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+    .custom-glow {
+      background: radial-gradient(circle at 50% 30%, rgba(45, 212, 191, 0.12) 0%, rgba(56, 189, 248, 0.04) 40%, rgba(8, 11, 16, 0) 70%);
+    }
+  </style>
+</head>
+<body id="top" class="bg-background text-on-surface antialiased selection:bg-primary-container selection:text-on-primary-container">
+<!-- 1. STICKY TOP NAVIGATION (Using Shared Component Spec) -->
+<header class="fixed top-0 left-0 w-full z-50 bg-background/80 backdrop-blur-md border-b border-outline-variant/30">
+<div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+<!-- Brand Anchor -->
+<a class="font-headline-md text-headline-md font-bold text-on-surface flex items-center gap-2 hover:opacity-90 transition-opacity" href="#top">
+<div class="w-8 h-8 rounded-lg bg-surface border border-outline-variant flex items-center justify-center text-primary-container">
+<span class="material-symbols-outlined text-[20px]" data-icon="shield">shield</span>
+</div>
+<span>DPI Fix</span>
+</a>
+<!-- Desktop Links -->
+<nav class="hidden md:flex items-center gap-8 font-body-md text-body-md">
+<a class="text-on-surface-variant hover:text-on-surface transition-colors" href="#ozellikler">Özellikler</a>
+<a class="text-on-surface-variant hover:text-on-surface transition-colors" href="#nasil-calisir">Nasıl Çalışır?</a>
+<a class="text-on-surface-variant hover:text-on-surface transition-colors" href="#karsilastirma">Karşılaştırma</a>
+<a class="text-on-surface-variant hover:text-on-surface transition-colors" href="#sss">SSS</a>
+</nav>
+<!-- Right Trailing Actions -->
+<div class="flex items-center gap-3">
+<a class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-outline-variant bg-surface font-body-md text-body-md text-on-surface hover:border-secondary hover:bg-surface-variant transition-colors" href="https://github.com/ValdikSS/GoodbyeDPI" rel="noreferrer" target="_blank">
+<span class="material-symbols-outlined text-[16px]" data-icon="terminal">terminal</span>
+<span>GitHub</span>
+</a>
+<a class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-container text-on-primary-container font-headline-md text-[13px] font-semibold hover:bg-primary transition-colors active:scale-[0.98]" href="Setup.exe" download>
+<span class="material-symbols-outlined text-[18px]" data-icon="download">download</span>
+<span class="sm:hidden">İndir</span><span class="hidden sm:inline">Hemen İndir (v2.0 - Windows)</span>
+</a>
+</div>
+</div>
+</header>
+<!-- 2. HERO SECTION -->
+<section class="relative pt-32 pb-20 overflow-hidden custom-glow border-b border-outline-variant/30">
+<div class="max-w-7xl mx-auto px-6">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+<!-- Left Column: Copy & CTAs -->
+<div class="lg:col-span-6 flex flex-col gap-6">
+<div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface border border-outline-variant w-fit">
+<span class="w-2 h-2 rounded-full bg-primary-container animate-pulse shadow-[0_0_8px_#2dd4bf]"></span>
+<span class="font-label-caps text-label-caps text-on-surface-variant">🇹🇷 Türkiye ISP Filtrelemelerine Karşı Kesintisiz Çözüm</span>
+</div>
+<h1 class="font-headline-xl text-[44px] leading-[50px] font-bold text-on-surface tracking-tight">
+            Tek tıkla,<br/>engelsiz internet.
+          </h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-xl">
+            Türkiye'deki servis sağlayıcıların uyguladığı Derin Paket İncelemesi (DPI), SNI filtreleme ve DNS engellemelerini hız kaybı ve bant genişliği sınırı olmadan yerel düzeyde aşar. Kurulumdan sonra arka planda hafif bir Windows servisi olarak çalışır ve her açılışta kendiliğinden başlar.
+          </p>
+<!-- Buttons -->
+<div class="flex flex-wrap items-center gap-4 pt-2">
+<a class="px-5 py-3 rounded-[14px] bg-primary-container text-on-primary-container font-headline-md text-headline-md font-semibold inline-flex items-center gap-3 hover:bg-primary transition-all shadow-[0_0_20px_rgba(45,212,191,0.2)] active:translate-y-0.5" href="Setup.exe" download>
+<span class="material-symbols-outlined text-[22px]" data-icon="download">download</span>
+<div class="text-left">
+<div>Windows İçin İndir (.exe)</div>
+<div class="font-label-code text-[11px] text-on-primary-container/80 font-normal">v2.0 • 32/64-bit • 0.6 MB</div>
+</div>
+</a>
+<a class="px-5 py-3.5 rounded-[14px] border border-outline-variant bg-surface text-on-surface font-body-md text-body-md font-semibold inline-flex items-center gap-2 hover:border-secondary hover:bg-surface-variant transition-colors" href="https://github.com/ValdikSS/GoodbyeDPI" rel="noreferrer" target="_blank">
+<span class="material-symbols-outlined text-[20px]" data-icon="code">code</span>
+<span>GitHub Kaynak Kodu</span>
+</a>
+</div>
+<!-- Micro Proofs -->
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-outline-variant/30">
+<div class="font-label-code text-label-code text-on-surface-variant flex items-center gap-1.5">
+<span class="text-primary-container font-bold">✓</span> Açık Kaynak
+            </div>
+<div class="font-label-code text-label-code text-on-surface-variant flex items-center gap-1.5">
+<span class="text-primary-container font-bold">✓</span> Kayıt Tutmaz
+            </div>
+<div class="font-label-code text-label-code text-on-surface-variant flex items-center gap-1.5">
+<span class="text-primary-container font-bold">✓</span> Sıfır Hız Kaybı
+            </div>
+<div class="font-label-code text-label-code text-on-surface-variant flex items-center gap-1.5">
+<span class="text-primary-container font-bold">✓</span> Win 10/11 Uyumlu
+            </div>
+</div>
+</div>
+<!-- Right Column: Windows Utility UI Preview Card -->
+<div class="lg:col-span-6">
+<div class="bg-surface border border-outline-variant rounded-[14px] shadow-2xl p-5 relative overflow-hidden backdrop-blur-xl">
+<!-- App Bar Window Header -->
+<div class="flex items-center justify-between pb-4 border-b border-outline-variant/40">
+<div class="flex items-center gap-2.5">
+<span class="material-symbols-outlined text-primary-container text-[18px]" data-icon="security">security</span>
+<span class="font-label-code text-label-code font-semibold text-on-surface">DPI Fix Service - v2.0</span>
+<span class="px-2 py-0.5 rounded text-[10px] font-label-code font-semibold bg-primary-container/10 text-primary-container border border-primary-container/30">
+                  Çalışıyor / Aktif
+                </span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-full bg-outline-variant/60"></div>
+<div class="w-3 h-3 rounded-full bg-outline-variant/60"></div>
+<div class="w-3 h-3 rounded-full bg-outline-variant/60"></div>
+</div>
+</div>
+<!-- Primary Switch & Status Pill -->
+<div class="py-4 flex items-center justify-between border-b border-outline-variant/30">
+<div>
+<div class="font-body-md text-body-md font-semibold text-on-surface">Paket Yönlendirme &amp; Parçalama</div>
+<div class="font-label-code text-[11px] text-on-surface-variant">WinDivert 2.2 - GoodbyeDPI 0.2.3rc3</div>
+</div>
+<div class="flex items-center gap-3">
+<span class="font-label-caps text-label-caps text-primary-container">BAĞLI</span>
+<!-- Windows Fluent Toggle -->
+<div class="w-10 h-5 bg-primary-container rounded-full relative cursor-pointer flex items-center px-0.5 shadow-sm">
+<div class="w-4 h-4 bg-background rounded-full transform translate-x-5 transition-transform"></div>
+</div>
+</div>
+</div>
+<!-- Key Metrics Grid -->
+<div class="grid grid-cols-2 gap-3 py-4 border-b border-outline-variant/30">
+<div class="bg-surface-container-low p-3 rounded-lg border border-outline-variant/40">
+<div class="font-label-caps text-label-caps text-on-surface-variant">EK GECİKME</div>
+<div class="font-metric-display text-metric-display text-primary mt-1">0 ms</div>
+<div class="font-label-code text-[10px] text-outline mt-0.5">Tünelleme yok</div>
+</div>
+<div class="bg-surface-container-low p-3 rounded-lg border border-outline-variant/40">
+<div class="font-label-caps text-label-caps text-on-surface-variant">SERVİS DURUMU</div>
+<div class="font-metric-display text-metric-display text-secondary mt-1">7/24</div>
+<div class="font-label-code text-[10px] text-primary-container mt-0.5">Açılışta otomatik</div>
+</div>
+<div class="bg-surface-container-low p-3 rounded-lg border border-outline-variant/40">
+<div class="font-label-caps text-label-caps text-on-surface-variant">SNI PARÇALAMA</div>
+<div class="font-body-md text-[13px] font-semibold text-on-surface mt-1">Aktif (-9 modu)</div>
+<div class="font-label-code text-[10px] text-primary-container mt-0.5">Site listesi: açık</div>
+</div>
+<div class="bg-surface-container-low p-3 rounded-lg border border-outline-variant/40">
+<div class="font-label-caps text-label-caps text-on-surface-variant">DNS-OVER-HTTPS</div>
+<div class="font-body-md text-[13px] font-semibold text-on-surface mt-1">Cloudflare DoH</div>
+<div class="font-label-code text-[10px] text-outline mt-0.5">Şifreli DNS - 443</div>
+</div>
+</div>
+<!-- Ping Stability Waveform Simulator -->
+<div class="py-3 flex items-center justify-between font-label-code text-[11px] text-on-surface-variant">
+<div class="flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+<span>Ping Kararlılığı: Kesintisiz (0 jitter)</span>
+</div>
+<div class="flex items-end gap-1 h-3">
+<span class="w-1 h-2 bg-primary-container/40 rounded-sm"></span>
+<span class="w-1 h-3 bg-primary-container rounded-sm"></span>
+<span class="w-1 h-2.5 bg-primary-container/80 rounded-sm"></span>
+<span class="w-1 h-3 bg-primary-container rounded-sm"></span>
+<span class="w-1 h-2 bg-primary-container/60 rounded-sm"></span>
+</div>
+</div>
+<!-- Terminal Output Log -->
+<div class="bg-surface-container-lowest p-3 rounded-lg border border-outline-variant/50 font-label-code text-[11px] text-on-surface-variant/90 space-y-1">
+<div class="text-outline">[14:32:01.402] <span class="text-primary-container">[WINDIVERT]</span> Süzgeç hazırlandı: outband packet capture</div>
+<div class="text-outline">[14:32:02.118] <span class="text-secondary">[SNI_SPLIT]</span> ClientHello parçalandı -&gt; discord.com (Pos: 2)</div>
+<div class="text-outline">[14:32:03.954] <span class="text-primary-container">[DOH_QUERY]</span> Cloudflare üzerinden yanıtlandı -&gt; 12ms</div>
+<div class="text-primary">[14:32:05.002] [OK] TCP Reset engellendi. Hedef soket güvenle açık.</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- 3. SHORT PROBLEM STATEMENT BLOCK -->
+<section class="py-16 bg-surface-container-low border-b border-outline-variant/30">
+<div class="max-w-4xl mx-auto px-6 text-center">
+<div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-error/10 border border-error/30 text-error mb-4">
+<span class="material-symbols-outlined text-[16px]" data-icon="warning">warning</span>
+<span class="font-label-caps text-label-caps text-error">ISP DERİN İNCELEME TESPİTİ</span>
+</div>
+<h2 class="font-headline-xl text-headline-xl font-bold text-on-surface mb-4">
+        Neden VPN Değil de DPI Fix?
+      </h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant leading-relaxed text-balance">
+        Türkiye'deki servis sağlayıcılar, internet trafiğinizi gözetlemek ve siteleri sansürlemek için yüksek kapasiteli <span class="text-on-surface font-semibold">Derin Paket İncelemesi (DPI)</span> donanımları kullanır. Bu donanımlar TLS el sıkışmasındaki alan adını (SNI) okur ve sahte TCP Sıfırlama (RST) paketleri gönderir. Geleneksel VPN'ler trafiği yurt dışına yönlendirerek internetinizi %40 yavaşlatır, pinginizi fırlatır ve aylık abonelik ücreti talep eder. <span class="text-primary-container font-semibold">DPI Fix</span> ise trafiğinizi hiçbir sunucuya yönlendirmez; Windows soket seviyesinde giden paketleri milisaniyeler içinde mikron parçalara ayırarak ISP sansür filtrelerini yerel olarak kör eder.
+      </p>
+</div>
+</section>
+<!-- 4. FEATURE GRID (8 CARDS) -->
+<section class="py-20 max-w-7xl mx-auto px-6" id="ozellikler">
+<div class="text-center max-w-2xl mx-auto mb-14">
+<div class="font-label-caps text-label-caps text-primary-container mb-2">TEKNİK MİMARİ &amp; PERFORMANS</div>
+<h2 class="font-headline-xl text-headline-xl font-bold text-on-surface">Modern İnternet İçin Rafine Kontrol</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-2">Hafif, sessiz ve Windows çekirdeği ile tam uyumlu mimari bileşenleri.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+<!-- Card 1 -->
+<div class="bg-surface border border-outline-variant rounded-[14px] p-5 hover:border-primary-container/40 transition-colors">
+<div class="w-10 h-10 rounded-lg bg-surface-variant border border-outline-variant flex items-center justify-center text-primary-container mb-4">
+<span class="material-symbols-outlined text-[20px]" data-icon="alt_route">alt_route</span>
+</div>
+<h3 class="font-headline-md text-headline-md font-semibold text-on-surface mb-2">SNI Sahteleme &amp; Parçalama</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">TLS Client Hello paketlerini bölerek ISP sansür donanımlarının hedef domaini tanımasını engeller.</p>
+</div>
+<!-- Card 2 -->
+<div class="bg-surface border border-outline-variant rounded-[14px] p-5 hover:border-primary-container/40 transition-colors">
+<div class="w-10 h-10 rounded-lg bg-surface-variant border border-outline-variant flex items-center justify-center text-secondary mb-4">
+<span class="material-symbols-outlined text-[20px]" data-icon="speed">speed</span>
+</div>
+<h3 class="font-headline-md text-headline-md font-semibold text-on-surface mb-2">Sıfır Ping &amp; Bant Kaybı</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Trafiğinizi uzak bir sunucuya yönlendirmez. Kendi internet bağlantınızın tam hızında kesintisiz sörf yapın.</p>
+</div>
+<!-- Card 3 -->
+<div class="bg-surface border border-outline-variant rounded-[14px] p-5 hover:border-primary-container/40 transition-colors">
+<div class="w-10 h-10 rounded-lg bg-surface-variant border border-outline-variant flex items-center justify-center text-primary-container mb-4">
+<span class="material-symbols-outlined text-[20px]" data-icon="memory">memory</span>
+</div>
+<h3 class="font-headline-md text-headline-md font-semibold text-on-surface mb-2">Arka Plan Windows Servisi</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Sistem açılışında otomatik başlar, çökerse kendini toparlar ve kullanıcı müdahalesi olmadan arka planda çalışır.</p>
+</div>
+<!-- Card 4 -->
+<div class="bg-surface border border-outline-variant rounded-[14px] p-5 hover:border-primary-container/40 transition-colors">
+<div class="w-10 h-10 rounded-lg bg-surface-variant border border-outline-variant flex items-center justify-center text-secondary mb-4">
+<span class="material-symbols-outlined text-[20px]" data-icon="dns">dns</span>
+</div>
+<h3 class="font-headline-md text-headline-md font-semibold text-on-surface mb-2">Şifreli DNS (DoH) Koruması</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">ISP'nizin DNS zehirleme ve yönlendirmelerine karşı Cloudflare şifreli DNS desteği; kaldırınca eski DNS ayarınız geri yüklenir.</p>
+</div>
+<!-- Card 5 -->
+<div class="bg-surface border border-outline-variant rounded-[14px] p-5 hover:border-primary-container/40 transition-colors">
+<div class="w-10 h-10 rounded-lg bg-surface-variant border border-outline-variant flex items-center justify-center text-primary-container mb-4">
+<span class="material-symbols-outlined text-[20px]" data-icon="visibility">visibility</span>
+</div>
+<h3 class="font-headline-md text-headline-md font-semibold text-on-surface mb-2">%100 Açık Kaynak &amp; Şeffaf</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Kodlar GitHub üzerinde herkese açıktır. Hiçbir telemetri veya kişisel veri toplanmaz.</p>
+</div>
+<!-- Card 6 -->
+<div class="bg-surface border border-outline-variant rounded-[14px] p-5 hover:border-primary-container/40 transition-colors">
+<div class="w-10 h-10 rounded-lg bg-surface-variant border border-outline-variant flex items-center justify-center text-secondary mb-4">
+<span class="material-symbols-outlined text-[20px]" data-icon="touch_app">touch_app</span>
+</div>
+<h3 class="font-headline-md text-headline-md font-semibold text-on-surface mb-2">Tek Tıkla Kurulum &amp; Güncelleme</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Karmaşık konsol komutları veya sürücü yüklemeleri gerekmez; tek tıkla çalışmaya hazır.</p>
+</div>
+<!-- Card 7 -->
+<div class="bg-surface border border-outline-variant rounded-[14px] p-5 hover:border-primary-container/40 transition-colors">
+<div class="w-10 h-10 rounded-lg bg-surface-variant border border-outline-variant flex items-center justify-center text-primary-container mb-4">
+<span class="material-symbols-outlined text-[20px]" data-icon="sports_esports">sports_esports</span>
+</div>
+<h3 class="font-headline-md text-headline-md font-semibold text-on-surface mb-2">Oyun &amp; Discord Optimizasyonu</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Ses ve oyun paketlerine müdahale etmez; ses kanallarında ve canlı yayınlarda gecikme yaratmaz.</p>
+</div>
+<!-- Card 8 -->
+<div class="bg-surface border border-outline-variant rounded-[14px] p-5 hover:border-primary-container/40 transition-colors">
+<div class="w-10 h-10 rounded-lg bg-surface-variant border border-outline-variant flex items-center justify-center text-secondary mb-4">
+<span class="material-symbols-outlined text-[20px]" data-icon="network_check">network_check</span>
+</div>
+<h3 class="font-headline-md text-headline-md font-semibold text-on-surface mb-2">Oto-Algılama &amp; Bypass Modları</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Kurulumda yapılandırma ağınıza göre otomatik seçilir; Superonline, Vodafone, Türk Telekom ve Türksat altyapılarında çalışır.</p>
+</div>
+</div>
+</section>
+<!-- 5. THREE-STEP 'NASIL ÇALIŞIR?' ROW -->
+<section class="py-20 bg-surface-container-low border-y border-outline-variant/30" id="nasil-calisir">
+<div class="max-w-7xl mx-auto px-6">
+<div class="text-center max-w-2xl mx-auto mb-14">
+<div class="font-label-caps text-label-caps text-secondary mb-2">3 BASİT ADIMDA ÖZGÜRLÜK</div>
+<h2 class="font-headline-xl text-headline-xl font-bold text-on-surface">Nasıl Çalışır?</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-2">Karmaşık ağ ayarlarına son. Sıfır konfigürasyon ile doğrudan sonuca ulaşın.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
+<!-- Step 1 -->
+<div class="bg-surface border border-outline-variant rounded-[14px] p-6 flex flex-col justify-between">
+<div>
+<div class="w-10 h-10 rounded-full bg-primary-container/10 border border-primary-container/30 text-primary-container font-metric-display text-metric-display flex items-center justify-center mb-6">
+              1
+            </div>
+<h3 class="font-headline-md text-headline-md font-semibold text-on-surface mb-3">İndirin ve Çalıştırın</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">
+              Tek dosyalık kurulum. Setup.exe çalıştırılır; uygulama Program Files altına kurulur, Windows servisi otomatik oluşturulur ve başlatılır.
+            </p>
+</div>
+<div class="pt-6 font-label-code text-[11px] text-outline border-t border-outline-variant/30 mt-6">
+            Dosya boyutu: 8.4 MB • Yönetici Yetkisi
+          </div>
+</div>
+<!-- Step 2 -->
+<div class="bg-surface border border-outline-variant rounded-[14px] p-6 flex flex-col justify-between">
+<div>
+<div class="w-10 h-10 rounded-full bg-secondary/10 border border-secondary/30 text-secondary font-metric-display text-metric-display flex items-center justify-center mb-6">
+              2
+            </div>
+<h3 class="font-headline-md text-headline-md font-semibold text-on-surface mb-3">Servisi Başlatın</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">
+              Tek bir tuşla yerel paket yönlendirme motorunu aktif edin. Uygulama otomatik olarak ISP'nize en uygun parçalama algoritmasını belirler.
+            </p>
+</div>
+<div class="pt-6 font-label-code text-[11px] text-outline border-t border-outline-variant/30 mt-6">
+            Oto TCP/UDP WinDivert Katmanı
+          </div>
+</div>
+<!-- Step 3 -->
+<div class="bg-surface border border-outline-variant rounded-[14px] p-6 flex flex-col justify-between">
+<div>
+<div class="w-10 h-10 rounded-full bg-primary-container/10 border border-primary-container/30 text-primary-container font-metric-display text-metric-display flex items-center justify-center mb-6">
+              3
+            </div>
+<h3 class="font-headline-md text-headline-md font-semibold text-on-surface mb-3">Sansürsüz Gezinin</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">
+              Tarayıcınızda veya uygulamalarınızda hiçbir ayar değiştirmeden özgürce internete erişin. Discord, platformlar ve siteler orijinal hat hızınızda açılır.
+            </p>
+</div>
+<div class="pt-6 font-label-code text-[11px] text-outline border-t border-outline-variant/30 mt-6">
+            Sıfır Ping Artışı • Tam Şifreleme
+          </div>
+</div>
+</div>
+</div>
+</section>
+<!-- 6. COMPARISON TABLE -->
+<section class="py-20 max-w-7xl mx-auto px-6" id="karsilastirma">
+<div class="text-center max-w-2xl mx-auto mb-14">
+<div class="font-label-caps text-label-caps text-primary-container mb-2">DETAYLI KARŞILAŞTIRMA</div>
+<h2 class="font-headline-xl text-headline-xl font-bold text-on-surface">Teknik Çözüm Karşılaştırması</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-2">DPI Fix'in geleneksel VPN ve tünelleme araçlarına kıyasla getirdiği bariz avantajlar.</p>
+</div>
+<div class="bg-surface border border-outline-variant rounded-[14px] overflow-hidden">
+<div class="overflow-x-auto w-full min-w-0">
+<table class="w-full min-w-[680px] text-left border-collapse">
+<thead>
+<tr class="bg-surface-variant border-b border-outline-variant">
+<th class="py-4 px-6 font-label-caps text-label-caps text-on-surface-variant">ÖZELLİK / KRİTER</th>
+<th class="py-4 px-6 font-label-caps text-label-caps text-on-surface-variant">STANDART İNTERNET &amp; VPN</th>
+<th class="py-4 px-6 font-label-caps text-label-caps text-primary-container bg-surface-variant/80">DPI FIX SERVİSİ</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/40 font-body-md text-body-md">
+<tr class="hover:bg-surface-variant/30 transition-colors">
+<td class="py-4 px-6 font-semibold text-on-surface">Bağlantı Hızı &amp; Gecikme</td>
+<td class="py-4 px-6 text-on-surface-variant">VPN: %20-%60 Hız Düşüşü &amp; +40ms Ping</td>
+<td class="py-4 px-6 text-primary-container font-semibold">Orijinal Hat Hızı &amp; 0ms Ekstra Ping</td>
+</tr>
+<tr class="hover:bg-surface-variant/30 transition-colors">
+<td class="py-4 px-6 font-semibold text-on-surface">Gizlilik &amp; Veri Kaydı</td>
+<td class="py-4 px-6 text-on-surface-variant">VPN sağlayıcısı trafiğinizi görebilir</td>
+<td class="py-4 px-6 text-primary-container font-semibold">Yerel çözüm, tüm veri cihazınızda kalır</td>
+</tr>
+<tr class="hover:bg-surface-variant/30 transition-colors">
+<td class="py-4 px-6 font-semibold text-on-surface">Aylık Abonelik Ücreti</td>
+<td class="py-4 px-6 text-on-surface-variant">Aylık 5$ - 15$ sürekli maliyet</td>
+<td class="py-4 px-6 text-primary-container font-semibold">Tamamen Ücretsiz &amp; Açık Kaynak</td>
+</tr>
+<tr class="hover:bg-surface-variant/30 transition-colors">
+<td class="py-4 px-6 font-semibold text-on-surface">Oyun &amp; Discord Uyumluluğu</td>
+<td class="py-4 px-6 text-on-surface-variant">Sunucu engelleri &amp; yüksek gecikme</td>
+<td class="py-4 px-6 text-primary-container font-semibold">Doğrudan hat üzerinden akıcı erişim</td>
+</tr>
+<tr class="hover:bg-surface-variant/30 transition-colors">
+<td class="py-4 px-6 font-semibold text-on-surface">Sistem Kaynak Tüketimi</td>
+<td class="py-4 px-6 text-on-surface-variant">Ağır arka plan istemcileri (&gt;200 MB)</td>
+<td class="py-4 px-6 text-primary-container font-semibold">Hafif Windows NT Servisi (&lt;15 MB)</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+<!-- 7. FAQ ACCORDION -->
+<section class="py-20 bg-surface-container-low border-t border-outline-variant/30" id="sss">
+<div class="max-w-4xl mx-auto px-6">
+<div class="text-center max-w-2xl mx-auto mb-14">
+<div class="font-label-caps text-label-caps text-secondary mb-2">SIKÇA SORULAN SORULAR</div>
+<h2 class="font-headline-xl text-headline-xl font-bold text-on-surface">Merak Edilenler</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-2">DPI Fix'in işleyişi, güvenliği ve uyumluluğu hakkında teknik yanıtlar.</p>
+</div>
+<div class="space-y-3">
+<!-- Accordion 1 -->
+<details class="group bg-surface border border-outline-variant rounded-[14px] overflow-hidden transition-all duration-200">
+<summary class="flex items-center justify-between p-5 cursor-pointer list-none select-none">
+<span class="font-headline-md text-headline-md font-semibold text-on-surface">DPI Fix bir VPN midir?</span>
+<span class="material-symbols-outlined text-outline transition-transform duration-200 group-open:rotate-180" data-icon="expand_more">expand_more</span>
+</summary>
+<div class="px-5 pb-5 pt-1 text-on-surface-variant font-body-md text-body-md border-t border-outline-variant/30">
+            Hayır, DPI Fix bir VPN veya proxy değildir. İnternet trafiğinizi üçüncü parti uzak sunuculara yönlendirmez. Yalnızca giden veri paketlerinizin başlıklarını bilgisayarınızın ağ kartı seviyesinde manipüle ederek sansür donanımlarının paket içeriğini analiz etmesini önler. Bu sebeple internet hızınızda en ufak bir düşüş yaşanmaz.
+          </div>
+</details>
+<!-- Accordion 2 -->
+<details class="group bg-surface border border-outline-variant rounded-[14px] overflow-hidden transition-all duration-200">
+<summary class="flex items-center justify-between p-5 cursor-pointer list-none select-none">
+<span class="font-headline-md text-headline-md font-semibold text-on-surface">Kullanımı yasal mıdır?</span>
+<span class="material-symbols-outlined text-outline transition-transform duration-200 group-open:rotate-180" data-icon="expand_more">expand_more</span>
+</summary>
+<div class="px-5 pb-5 pt-1 text-on-surface-variant font-body-md text-body-md border-t border-outline-variant/30">
+            Evet, DPI Fix yerel ağ paketlerinizi düzenleyen açık kaynaklı bir araçtır. Bilgisayarınızdan çıkan paketlerin iletim protokolü standartlarına uygun biçimde bölünmesini sağlar; herhangi bir illegal ağa veya tünele bağlanmaz.
+          </div>
+</details>
+<!-- Accordion 3 -->
+<details class="group bg-surface border border-outline-variant rounded-[14px] overflow-hidden transition-all duration-200">
+<summary class="flex items-center justify-between p-5 cursor-pointer list-none select-none">
+<span class="font-headline-md text-headline-md font-semibold text-on-surface">Hangi internet servis sağlayıcılarında çalışır?</span>
+<span class="material-symbols-outlined text-outline transition-transform duration-200 group-open:rotate-180" data-icon="expand_more">expand_more</span>
+</summary>
+<div class="px-5 pb-5 pt-1 text-on-surface-variant font-body-md text-body-md border-t border-outline-variant/30">
+            Superonline, Türk Telekom, Vodafone, Kablonet ve tüm yerel ISP'lerde test edilmiştir. Program içerisindeki otomatik kural motoru, ISP'nizin kullandığı DPI filtre tipini tanıyarak en uygun baypas kombinasyonunu (örneğin Fake Packet Dissect veya Fragmented TLS) otomatik belirler.
+          </div>
+</details>
+<!-- Accordion 4 -->
+<details class="group bg-surface border border-outline-variant rounded-[14px] overflow-hidden transition-all duration-200">
+<summary class="flex items-center justify-between p-5 cursor-pointer list-none select-none">
+<span class="font-headline-md text-headline-md font-semibold text-on-surface">Oyunlarda ping artışına sebep olur mu?</span>
+<span class="material-symbols-outlined text-outline transition-transform duration-200 group-open:rotate-180" data-icon="expand_more">expand_more</span>
+</summary>
+<div class="px-5 pb-5 pt-1 text-on-surface-variant font-body-md text-body-md border-t border-outline-variant/30">
+            Kesinlikle hayır; trafik uzak sunucuya gitmediği için ping değeriniz değişmez. Çevrimiçi oyunlarda (Valorant, CS2, LoL vb.) veya Discord ses odalarında sıfır gecikmeyle normal bağlantınız çalışmaya devam eder.
+          </div>
+</details>
+<!-- Accordion 5 -->
+<details class="group bg-surface border border-outline-variant rounded-[14px] overflow-hidden transition-all duration-200">
+<summary class="flex items-center justify-between p-5 cursor-pointer list-none select-none">
+<span class="font-headline-md text-headline-md font-semibold text-on-surface">Antivirüs veya Windows Defender uyarı verir mi?</span>
+<span class="material-symbols-outlined text-outline transition-transform duration-200 group-open:rotate-180" data-icon="expand_more">expand_more</span>
+</summary>
+<div class="px-5 pb-5 pt-1 text-on-surface-variant font-body-md text-body-md border-t border-outline-variant/30">
+            DPI Fix, Windows çekirdeğinde giden paketleri yakalamak için endüstri standardı açık kaynaklı WinDivert sürücüsünü kullanır. Bazı sezgisel koruma motorları düşük seviyeli ağ sürücüsü kurulumlarında uyarı verebilir. Proje kodu bütünüyle GitHub üzerinde açık kaynaktır ve güvenilirdir.
+          </div>
+</details>
+<!-- Accordion 6 -->
+<details class="group bg-surface border border-outline-variant rounded-[14px] overflow-hidden transition-all duration-200">
+<summary class="flex items-center justify-between p-5 cursor-pointer list-none select-none">
+<span class="font-headline-md text-headline-md font-semibold text-on-surface">Nasıl kaldırılır veya devre dışı bırakılır?</span>
+<span class="material-symbols-outlined text-outline transition-transform duration-200 group-open:rotate-180" data-icon="expand_more">expand_more</span>
+</summary>
+<div class="px-5 pb-5 pt-1 text-on-surface-variant font-body-md text-body-md border-t border-outline-variant/30">
+            Uygulamadaki Kaldır düğmesi servisi, WinDivert sürücüsünü ve DNS ayarını geri alır; Program Ekle/Kaldır kaydı da temizlenir.
+          </div>
+</details>
+</div>
+</div>
+</section>
+<!-- 8. FINAL CENTERED CTA BAND -->
+<section class="py-24 max-w-7xl mx-auto px-6" id="indir">
+<div class="bg-surface border border-primary-container/30 rounded-[14px] p-8 md:p-14 text-center relative overflow-hidden shadow-[0_0_50px_rgba(45,212,191,0.06)]">
+<div class="max-w-2xl mx-auto relative z-10">
+<div class="w-12 h-12 rounded-xl bg-surface-variant border border-outline-variant flex items-center justify-center text-primary-container mx-auto mb-6">
+<span class="material-symbols-outlined text-[28px]" data-icon="bolt">bolt</span>
+</div>
+<h2 class="font-headline-xl text-[36px] font-bold text-on-surface tracking-tight mb-4">
+          İnternetinizi bugün özgürleştirin.
+        </h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant mb-8">
+          Windows 10 ve 11 için optimize edilmiş en hafif açık kaynak DPI engelleme aracı.
+        </p>
+<div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+<a class="w-full sm:w-auto px-8 py-4 rounded-[14px] bg-primary-container text-on-primary-container font-headline-md text-headline-md font-semibold inline-flex items-center justify-center gap-3 hover:bg-primary transition-all shadow-[0_0_24px_rgba(45,212,191,0.3)] active:translate-y-0.5" href="Setup.exe" download>
+<span class="material-symbols-outlined text-[24px]" data-icon="download">download</span>
+<span>Windows İçin İndir (.exe)</span>
+</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors underline underline-offset-4" href="https://github.com/ValdikSS/GoodbyeDPI" target="_blank" rel="noopener">
+            Taşınabilir ZIP (.zip) Alternatifi
+          </a>
+</div>
+<div class="font-label-code text-label-code text-outline mt-6">
+          SHA256: 4e9f731a587c65...e21 • Sürüm 2.4.1 (64-bit)
+        </div>
+</div>
+</div>
+</section>
+<!-- 9. FOOTER (Using Shared Component Spec) -->
+<footer class="w-full border-t border-outline-variant/30 bg-surface-container-lowest text-on-surface-variant">
+<div class="max-w-7xl mx-auto px-6 py-12 flex flex-col gap-8">
+<div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pb-6 border-b border-outline-variant/20">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded bg-surface border border-outline-variant flex items-center justify-center text-primary-container">
+<span class="material-symbols-outlined text-[14px]" data-icon="shield">shield</span>
+</div>
+<span class="font-headline-md text-headline-md font-bold text-on-surface">DPI Fix</span>
+</div>
+<!-- Navigation Links -->
+<div class="flex flex-wrap items-center gap-6 font-body-md text-body-md">
+<a class="hover:text-primary transition-colors" href="https://github.com/ValdikSS/GoodbyeDPI">GitHub Repo</a>
+<a class="hover:text-primary transition-colors" href="https://github.com/ValdikSS/GoodbyeDPI#readme">Dokümantasyon</a>
+<a class="hover:text-primary transition-colors" href="https://github.com/ValdikSS/GoodbyeDPI/releases">Sürüm Notları</a>
+
+<a class="hover:text-primary transition-colors" href="#yasal">Gizlilik Politikası</a>
+<a class="hover:text-primary transition-colors" href="#yasal">Kullanım Koşulları</a>
+</div>
+</div>
+<!-- Legal Disclaimer & Copyright -->
+<div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 font-body-md text-[12px] text-outline">
+<p class="max-w-3xl leading-relaxed">
+          DPI Fix, kullanıcıların ağ gizliliğini ve net tarafsızlığını koruma amacıyla geliştirilmiş açık kaynaklı bir projedir. Ticari bir kar amacı gütmez. Windows, Microsoft Corporation'ın tescilli ticari markasıdır. Lisans: Apache-2.0 (GoodbyeDPI) ve LGPL-3.0 (WinDivert).
+        </p>
+<p class="md:whitespace-nowrap">
+          © 2026 DPI Fix Projesi. Açık kaynaklı ve sansürsüz internet savunucusu.
+        </p>
+</div>
+</div>
+</footer>
+</body></html>
