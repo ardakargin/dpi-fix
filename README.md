@@ -102,32 +102,23 @@ type %TEMP%\dpifix-selftest.txt
 Çıktı: mimari, gömülü kaynak doğrulaması (7/7), servis durumu ve **servise yazılmış gerçek
 komut satırı**, ağ testleri.
 
-## Yayınlama (GitHub)
+## Depo
 
-Depo hazır: `main` dalı, ilk commit atıldı, `LICENSE` + `LICENSES/` + `THIRD-PARTY.md` yerinde.
+**https://github.com/ardakargin/dpi-fix** — public, MIT.
 
-```
-winget install --id GitHub.cli -e
-gh auth login
-yayinla.cmd
-```
-
-`yayinla.cmd`, `gh repo create dpi-fix --public --source=. --remote=origin --push` çalıştırır.
-gh yoksa/giriş yapılmamışsa elle yapılacak komutları yazar.
-
-Elle yol: GitHub'da **README/gitignore eklemeden** boş bir `dpi-fix` deposu aç, sonra:
+Güncelleme akışı:
 
 ```
-git remote add origin https://github.com/KULLANICI/dpi-fix.git
-git branch -M main
-git push -u origin main
+git add -A
+git commit -m "..."
+git push
 ```
 
-İlk commit'te kimlik yer tutucudur (`DpiFix <noreply@dpifix.local>`). Kendi adına çevirmek için:
+`gh` kurulu ama bu kabuğun PATH'inde olmayabilir; gerekirse tam yol:
+`"C:\Program Files\GitHub CLI\gh.exe"`.
 
-```
-git commit --amend --reset-author --no-edit
-```
+İlk commit `Arda Karğın <335661598+ardakargin@users.noreply.github.com>` kimliğiyle
+atıldı, yani GitHub hesabına bağlı görünür.
 
 ## Notlar / riskler
 
