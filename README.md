@@ -1,26 +1,31 @@
-# DPI Fix v2 — tek dosya uygulama + kurulum + site
+# DPI Fix — tek dosya uygulama + kurulum
 
-Eski `C:\dpi` klasöründeki 15 ayrı `.cmd` varyantının yerini alan tek uygulama.
-Motor (GoodbyeDPI 0.2.3rc3) değişmedi; üstüne yapılandırma, arayüz, servis ve dağıtım katmanı yeniden yazıldı.
+Türkiye'deki DPI/DNS zorlamasını kaldıran Windows uygulaması. Motor: GoodbyeDPI 0.2.3rc3.
+
+**İndir:** https://github.com/ardakargin/dpi-fix/releases/latest
 
 ## Klasör yapısı
 
 ```
-yeni\
-  DpiFix.exe          ← UYGULAMA. Motor içinde gömülü (590 KB), tek dosya.
-  Setup.exe           ← KURULUM. DpiFix.exe içinde gömülü (606 KB), tek dosya.
-  selftest.exe        ← Teşhis (UAC istemez, konsol)
-  build.cmd           ← Derleme
-  src\DpiCore.cs      Motor: payload, servis, profil seçimi, DoH, log, ağ izleyici
-  src\DpiFix.cs       GUI + komut satırı
-  src\Setup.cs        Kurulum/kaldırma
-  src\app.manifest    requireAdministrator
-  payload\            Derleme girdisi (exe'ye gömülür, dağıtımda gerekmez)
-  design\             Stitch üretimi tasarım kaynakları (HTML + ekran görüntüsü)
-  site\index.html     Tanıtım sitesi — Stitch ile üretildi, tek dosya
-  site\GORSEL-PROMPTLAR.md   AI görsel üretim promptları
-  site\assets\        favicon.png, og.png (opsiyonel: logo/hero/shot)
+dpi-fix\
+  build.cmd           Derleme (çıktı: dist\)
+  src\
+    DpiCore.cs        Motor: payload, servis, profil seçimi, DoH, log, ağ izleyici
+    DpiFix.cs         GUI + komut satırı
+    Setup.cs          Kurulum/kaldırma
+    app.manifest      requireAdministrator
+  payload\            Gömülecek ikililer (goodbyedpi + WinDivert) — depoda, derleme girdisi
+  LICENSES\           Apache-2.0 / LGPL-3.0 / BSD metinleri
+  LICENSE             MIT (bu projenin kodu)
+  THIRD-PARTY.md      Üçüncü taraf bileşenler ve uyum notları
+  dist\               DERLEME ÇIKTISI — depoda tutulmaz, Release ile dağıtılır
+    DpiFix.exe          Uygulama (motor gömülü, tek dosya)
+    Setup.exe           Kurulum (DpiFix.exe gömülü, tek dosya)
+    selftest.exe        Teşhis (UAC istemez)
 ```
+
+Depoda **bulunmayan**, yalnızca yerelde duran klasörler: `site\` (tanıtım sitesi) ve
+`design\` (Stitch tasarım kaynakları).
 
 ## Site tasarımı (Stitch CLI)
 

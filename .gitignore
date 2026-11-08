@@ -1,6 +1,9 @@
-# Derleme çıktıları depoda tutuluyor (hazır kullanım için):
-#   DpiFix.exe, Setup.exe, selftest.exe
-# Kaynaktan üretmek için: build.cmd
+# Derleme çıktısı — Release ile dağıtılır, depoda tutulmaz
+dist/
+
+# Tanıtım sitesi ve Stitch tasarım kaynakları — depoda paylaşılmaz
+site/
+design/
 
 *.user
 *.suo
