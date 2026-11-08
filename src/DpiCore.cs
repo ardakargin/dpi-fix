@@ -23,7 +23,7 @@ static class Core
     public const string SvcDisplay = "DPI Fix";
     public const string SvcDesc = "Türkiye için DPI/DNS zorlamasını kaldırır (GoodbyeDPI).";
     public const string LegacySvc = "GoodbyeDPI";
-    public const string AppVersion = "2.1.0";
+    public const string AppVersion = "2.2.0";
     public const string EngineVersion = "0.2.3rc3";
     public const string UpstreamApi = "https://api.github.com/repos/ValdikSS/GoodbyeDPI/releases/latest";
 
@@ -33,7 +33,22 @@ static class Core
     public static string Arch = Environment.Is64BitOperatingSystem ? "x86_64" : "x86";
 
     public static string PayloadDir { get { return Path.Combine(DataDir, "payload", Arch); } }
-    public static string ExePath { get { return Path.Combine(PayloadDir, "goodbyedpi.exe"); } }
+    public static string GoodbyeDpiPath { get { return Path.Combine(PayloadDir, "goodbyedpi.exe"); } }
+    public static string RustEnginePath { get { return Path.Combine(PayloadDir, "dpifix-engine.exe"); } }
+    /// Rust motoru yalnızca 64-bit sistemde ve dosya varsa kullanılabilir
+    public static bool RustEngineUsable
+    {
+        get { return Environment.Is64BitOperatingSystem && File.Exists(RustEnginePath); }
+    }
+    public static bool RustEngineCompiled
+    {
+        get { return EngineInfoPresent.Value && Environment.Is64BitOperatingSystem; }
+    }
+    /// Servise yazılacak yürütülebilir dosya
+    public static string ExePath
+    {
+        get { return Engine == "rust" && RustEngineUsable ? RustEnginePath : GoodbyeDpiPath; }
+    }
     public static string BlacklistPath { get { return Path.Combine(DataDir, "blacklist.txt"); } }
     public static string LogPath { get { return Path.Combine(DataDir, "log.txt"); } }
     public static string SettingsPath { get { return Path.Combine(DataDir, "settings.ini"); } }
@@ -43,6 +58,8 @@ static class Core
     public static bool AutoReprobe = true;
     public static bool VerifyPayload = true;
     public static string Lang = "tr";
+    /// "goodbyedpi" (varsayılan) veya "rust"
+    public static string Engine = "goodbyedpi";
 
     static readonly object Gate = new object();
     public static Action<string> Sink;   // GUI/konsol kancası
@@ -83,6 +100,11 @@ static class Core
                     string raw = ls[i].Substring(p + 1).Trim().ToLowerInvariant();
                     if (raw == "en" || raw == "tr") Lang = raw;
                 }
+                else if (k == "engine")
+                {
+                    string raw = ls[i].Substring(p + 1).Trim().ToLowerInvariant();
+                    if (raw == "rust" || raw == "goodbyedpi") Engine = raw;
+                }
             }
         }
         catch { }
@@ -97,7 +119,8 @@ static class Core
                 "doh=" + (DohEnabled ? "1" : "0") + "\r\n" +
                 "autoreprobe=" + (AutoReprobe ? "1" : "0") + "\r\n" +
                 "verify=" + (VerifyPayload ? "1" : "0") + "\r\n" +
-                "lang=" + Lang + "\r\n", Encoding.UTF8);
+                "lang=" + Lang + "\r\n" +
+                "engine=" + Engine + "\r\n", Encoding.UTF8);
         }
         catch { }
     }
@@ -207,6 +230,46 @@ static class Core
                 }
             }
         }
+
+        // Rust motoru (64-bit sistemlerde) — ayrı kaynak, ayrı doğrulama
+        if (EngineInfoPresent.Value && Environment.Is64BitOperatingSystem)
+        {
+            try
+            {
+                using (Stream s = asm.GetManifestResourceStream("pl_engine"))
+                {
+                    if (s == null) { Log("   gömülü Rust motoru yok"); }
+                    else
+                    {
+                        byte[] buf = new byte[s.Length];
+                        int off = 0;
+                        while (off < buf.Length)
+                        {
+                            int n2 = s.Read(buf, off, buf.Length - off);
+                            if (n2 <= 0) break;
+                            off += n2;
+                        }
+                        File.WriteAllBytes(RustEnginePath, buf);
+                        Log("Rust motoru çıkarıldı: dpifix-engine.exe (" + (buf.Length / 1024) + " KB)");
+                        if (VerifyPayload && EngineInfo.Sha256.Length > 0)
+                        {
+                            string h = Sha256File(RustEnginePath);
+                            if (!string.Equals(h, EngineInfo.Sha256, StringComparison.OrdinalIgnoreCase))
+                            {
+                                Log("   BÜTÜNLÜK UYARISI: dpifix-engine.exe");
+                                warn = "Bütünlük doğrulanamadı: dpifix-engine.exe";
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log("   Rust motoru yazılamadı: " + ex.Message);
+                warn = "Rust motoru yazılamadı";
+            }
+        }
+
         return warn;
     }
 
@@ -540,6 +603,12 @@ static class Core
 
                 Log(Loc.T("log.step1"));
                 string warn = ExtractPayload();
+                if (Engine == "rust" && !RustEngineUsable)
+                {
+                    Log(Loc.T("log.enginefb"));
+                    Engine = "goodbyedpi";
+                }
+                Log(Loc.T("log.engine", Engine == "rust" ? "Rust (dpifix-engine)" : "GoodbyeDPI"));
                 if (warn != null) Log("   UYARI: " + warn);
 
                 Log(Loc.T("log.step2"));

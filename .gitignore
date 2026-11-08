@@ -14,3 +14,7 @@ design/
 Thumbs.db
 desktop.ini
 .DS_Store
+# Rust derleme ciktisi ve uretilen motor ikilisi
+engine/target/
+payload/engine/
+src/EngineInfo.g.cs

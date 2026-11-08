@@ -228,6 +228,10 @@ static class Loc
         Add("chk.doh", "DNS-over-HTTPS (Cloudflare)", "DNS-over-HTTPS (Cloudflare)");
         Add("chk.watch", "Ağ değişince otomatik yeniden seç", "Re-detect when network changes");
         Add("chk.verify", "Dosya bütünlüğü doğrulaması", "Payload integrity check");
+        Add("chk.rust", "Rust motoru (deneysel)", "Rust engine (experimental)");
+        Add("log.engine", "Motor: {0}", "Engine: {0}");
+        Add("log.enginefb", "Rust motoru kullanılamıyor, GoodbyeDPI'ya dönüldü.",
+                            "Rust engine unavailable, falling back to GoodbyeDPI.");
 
         Add("confirm.remove", "Servis, DNS ayarı ve kopyalanan dosyalar geri alınacak. Onaylıyor musunuz?",
                              "Service, DNS setting and copied files will be reverted. Continue?");

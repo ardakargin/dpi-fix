@@ -47,7 +47,7 @@ class MainForm : Form
     Label secStatus, secActions, secSettings, secLog, lblService, lblEngine, lblProfile, lblSites;
     Label title, sub, hint1, hint2;
     FlatButton btnInstall, btnStop, btnRemove, btnTest, btnList, btnUpdate, btnLog, btnLang;
-    FlatCheck chkDoh, chkWatch, chkVerify;
+    FlatCheck chkDoh, chkWatch, chkVerify, chkRust;
     System.Windows.Forms.Timer timer;
     bool busy = false;
 
@@ -150,6 +150,7 @@ class MainForm : Form
         secSettings = SectionLabel(this, 24, 316);
 
         chkDoh = MkCheck(24, 334);
+        chkRust = MkCheck(340, 334);
         chkWatch = MkCheck(24, 358);
         chkVerify = MkCheck(24, 382);
 
@@ -267,6 +268,7 @@ class MainForm : Form
         Core.DohEnabled = chkDoh.Checked;
         Core.AutoReprobe = chkWatch.Checked;
         Core.VerifyPayload = chkVerify.Checked;
+        Core.Engine = chkRust.Checked ? "rust" : "goodbyedpi";
         Core.SaveSettings();
     }
 
@@ -278,6 +280,8 @@ class MainForm : Form
         chkDoh.Checked = Core.DohEnabled;
         chkWatch.Checked = Core.AutoReprobe;
         chkVerify.Checked = Core.VerifyPayload;
+        chkRust.Checked = Core.Engine == "rust";
+        chkRust.Enabled = Core.RustEngineCompiled;
         loading = false;
     }
 
@@ -307,6 +311,7 @@ class MainForm : Form
         chkDoh.Text = Loc.T("chk.doh");
         chkWatch.Text = Loc.T("chk.watch");
         chkVerify.Text = Loc.T("chk.verify");
+        chkRust.Text = Loc.T("chk.rust");
 
         hint1.Text = Loc.T("hint.tip");
         hint2.Text = Loc.T("hint.log", Core.LogPath);

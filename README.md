@@ -1,155 +1,113 @@
-# DPI Fix — tek dosya uygulama + kurulum
+# DPI Fix — Çok Platformlu DPI / DNS Zorlaması Kaldırıcı
 
-Türkiye'deki DPI/DNS zorlamasını kaldıran Windows uygulaması. Motor: GoodbyeDPI 0.2.3rc3.
+Türkiye'deki internet servis sağlayıcılarının uyguladığı Derin Paket İncelemesi (DPI) ve DNS engellemelerini hız kaybı olmadan yerel düzeyde aşan açık kaynaklı yazılım.
 
-**İndir:** https://github.com/ardakargin/dpi-fix/releases/latest
+**Referans Projeler:**
+- [ValdikSS/GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI) (Orijinal DPI circumvention motoru)
+- [cagritaskn/GoodbyeDPI-Turkey](https://github.com/cagritaskn/GoodbyeDPI-Turkey) (Türkiye ISP kuralları & macOS uyarlaması)
 
-## Klasör yapısı
+**Son Sürüm İndir (Windows):**  
+👉 [GitHub Releases: Setup.exe](https://github.com/ardakargin/dpi-fix/releases/latest/download/Setup.exe) (Tek tıkla kurulum)
+
+---
+
+## 🌟 Öne Çıkan Özellikler
+
+- **Çift Motor Desteği (C & Rust):**
+  - **GoodbyeDPI 0.2.3rc3 (C):** Yıllardır test edilmiş, kararlı varsayılan motor.
+  - **DPI Fix Engine (Rust):** Sıfır harici crate ile Rust dilinde sıfırdan yazılmış, yerel FFI üzerinden WinDivert ile çalışan modern motor (`AYARLAR → Rust motoru`).
+- **Site Listesi Modu (`--blacklist`):** Yalnızca hedeflenen alan adlarına müdahale edilir (`discord.com`, `instagram.com` vb.). Diğer tüm internet trafiği orijinal hızında ve dokunulmadan akar.
+- **Kalıcı Windows Servisi:** Kurulumdan sonra uygulama arayüzünü kapatabilirsiniz. Bilgisayar yeniden başlatıldığında otomatik çalışır, çökme durumunda 5/15/60 sn içinde kendini toparlar.
+- **DNS-over-HTTPS (DoH):** Cloudflare şifreli DNS desteği; uygulama kaldırıldığında eski DNS ayarları otomatik geri yüklenir.
+- **QUIC / HTTP3 Engelleme (`-q`):** Tarayıcıyı zorunlu TCP'ye düşürerek parçalama stratejilerinin tam verimle çalışmasını sağlar.
+- **İki Dil Desteği (TR / EN):** Arayüzün sağ üst köşesinden tek tıkla dil değişimi.
+- **Koyu Modern Tasarım:** Tamamen özel çizilmiş kontroller, canlı durum izleme, log paneli ve koyu başlık çubuğu.
+
+---
+
+## 🖥️ Platform Desteği
+
+| Platform | Arayüz | Motor | Servis Yöntemi | Durum |
+|---|---|---|---|---|
+| **Windows 10 / 11** (32 & 64-bit) | Modern GUI (`DpiFix.exe`) | GoodbyeDPI (C) & DPI Fix (Rust) | Windows NT Servisi | **Tam Destek** |
+| **Linux** (systemd) | CLI (`linux/dpi-fix.sh`) | zapret / nfqws | systemd service | **Destekleniyor** |
+| **macOS 12+** (Intel & Apple Silicon) | CLI (`macos/dpi-fix.sh`) | byedpi (`ciadpi`) | launchd LaunchDaemon | **Destekleniyor** |
+
+- **Linux Kurulumu:** Ayrıntılar için [linux/README.md](linux/README.md)
+- **macOS Kurulumu:** Ayrıntılar için [macos/README.md](macos/README.md)
+
+---
+
+## 🦀 Özel Rust Motoru (`engine/`)
+
+Bu proje, GoodbyeDPI C motoruna ek olarak bağımsız bir **Rust motoru** barındırır:
+
+- **Sıfır Harici Crate:** Yalnızca Rust standart kütüphanesi kullanılır.
+- **Dinamik FFI:** `WinDivert.lib` gerektirmez; `WinDivert.dll` çalışma anında dinamik yüklenir.
+- **Tam Protokol Ayrıştırma:** IPv4, IPv6, TCP, UDP ayrıştırma, birin tümleyeni sağlama toplamı (checksum) hesaplama.
+- **SNI ve Host Analizi:** TLS ClientHello paketinden Server Name Indication (SNI) ve HTTP Host başlığını gerçek zamanlı tespit etme.
+- **Parçalama & Sahte Paket:** SNI içinden bölme, ters sırada segment gönderimi, geçmiş TCP SEQ, bozuk checksum ve TTL manipülasyonu.
+- **25 Birim Testi:** Tüm paket ve parçalama mantığı `cargo test` ile doğrulanmıştır.
+
+Rust motorunu test etmek için:
+```bash
+cd engine
+cargo test --release
+```
+
+---
+
+## 📦 Proje Yapısı
 
 ```
 dpi-fix\
-  build.cmd           Derleme (çıktı: dist\)
+  build.cmd             Windows derleme betiği (.NET + Rust motoru -> dist\)
   src\
-    DpiCore.cs        Motor: payload, servis, profil seçimi, DoH, log, ağ izleyici
-    DpiFix.cs         Arayüz + komut satırı
-    Ui.cs             Tema, özel kontroller, TR/EN yerelleştirme
-    Setup.cs          Kurulum/kaldırma
-    app.manifest      requireAdministrator
-  linux\              Linux yardımcısı (zapret tabanlı, deneysel)
-  payload\            Gömülecek ikililer (goodbyedpi + WinDivert) — depoda, derleme girdisi
-  LICENSES\           Apache-2.0 / LGPL-3.0 / BSD metinleri
-  LICENSE             MIT (bu projenin kodu)
-  THIRD-PARTY.md      Üçüncü taraf bileşenler ve uyum notları
-  dist\               DERLEME ÇIKTISI — depoda tutulmaz, Release ile dağıtılır
-    DpiFix.exe          Uygulama (motor gömülü, tek dosya)
-    Setup.exe           Kurulum (DpiFix.exe gömülü, tek dosya)
-    selftest.exe        Teşhis (UAC istemez)
+    Ui.cs               Koyu tema, özel kontroller, TR/EN yerelleştirme
+    DpiCore.cs          Servis yönetimi, DNS katmanı, test mekanizması
+    DpiFix.cs           Modern uygulama arayüzü
+    Setup.cs            Tek dosya kurulum ve kaldırma aracı
+    app.manifest        Yönetici yetkisi (requireAdministrator)
+  engine\               Özel Rust DPI atlatma motoru
+    Cargo.toml
+    src\
+      main.rs           CLI & motor giriş noktası
+      engine.rs         Paket döngüsü & baypas stratejileri
+      packet.rs         IP/TCP/UDP ayrıştırıcı & checksum
+      sniff.rs          TLS SNI & HTTP Host ayrıştırıcı
+      hostlist.rs       Site listesi eşleme algoritması
+      windivert.rs      WinDivert FFI katmanı
+  linux\                Linux zapret/systemd yönetim betikleri
+  macos\                macOS byedpi/launchd yönetim betikleri
+  payload\              WinDivert sürücüleri & GoodbyeDPI ikilileri (derleme girdisi)
+  LICENSES\             Apache-2.0, LGPL-3.0, BSD lisans metinleri
+  LICENSE               MIT Lisansı (bu projenin kodu)
+  THIRD-PARTY.md        Üçüncü taraf bileşen uyum beyanları
+  dist\                 DERLEME ÇIKTILARI (Release dosyaları):
+    Setup.exe           Kurulum aracı (DpiFix.exe içinde gömülü)
+    DpiFix.exe          Uygulama (tüm motorlar gömülü, taşınabilir)
+    selftest.exe        Teşhis aracı (yönetici yetkisi istemez)
 ```
 
-Depoda **bulunmayan**, yalnızca yerelde duran klasörler: `site\` (tanıtım sitesi) ve
-`design\` (Stitch tasarım kaynakları).
+---
 
-## Arayüz ve dil
+## 🔨 Derleme (Build)
 
-Arayüz koyu temalı, özel çizilmiş (WinForms üzerine elle çizilmiş yuvarlak paneller/düğmeler).
-Kullanıcı **TR / EN** arasında tek düğmeyle geçer; seçim `settings.ini` içinde `lang=` olarak saklanır.
-Durum kartı canlı servis hâlini, seçili yapılandırmayı ve site listesi sayısını gösterir.
+Gereksinimler:
+- Windows 10/11
+- .NET Framework 4.x (`csc.exe` dahildir)
+- (Opsiyonel) Rust 1.80+ (Rust motorunu derlemek için; yoksa GoodbyeDPI ile derlenir)
 
-## Platformlar
-
-| | Windows | Linux | macOS |
-|---|---|---|---|
-| Arayüz | GUI (`DpiFix.exe`) | CLI (`linux/dpi-fix.sh`) | — |
-| Motor | GoodbyeDPI + WinDivert | zapret / nfqws | — |
-| Kalıcılık | Windows servisi | systemd | — |
-| Durum | **Destekleniyor** | **Deneysel** | Desteklenmiyor |
-
-Windows arayüzü .NET Framework/WinForms; Linux'ta çalışmaz. Linux tarafı aynı işi zapret'e
-devreder ve yalnızca servis yaşam döngüsünü yönetir — ayrıntı: [linux/README.md](linux/README.md).
-macOS'ta çekirdek seviyesinde eşdeğer bir paket filtresi yolu olmadığı için destek yok.
-
-## Site tasarımı (Stitch CLI)
-
-Tasarım Google Stitch ile üretildi, sonra projeye uyarlandı (sahte metrikler gerçek değerlerle
-değiştirildi, sürüm/lisans düzeltildi, indirme düğmeleri `Setup.exe`'ye bağlandı).
-
-```
-Stitch proje : 9199455847391265127
-Stitch screen: b0d31a3d10794517838e08ebfc68cba1
-Canvas       : https://stitch.google.com/projects/9199455847391265127?node-id=b0d31a3d10794517838e08ebfc68cba1
-```
-
-Yeniden üretmek / varyant almak için:
-
-```
-stitch generate screen --project 9199455847391265127 --screen b0d31a3d10794517838e08ebfc68cba1 ^
-  --count 3 --creative-range EXPLORE --aspects LAYOUT,COLOR_SCHEME
-stitch download screen <yeni-screen-id> --project 9199455847391265127 --html --image --output design
-stitch serve --project 9199455847391265127
-```
-
-Notlar:
-- `index.html` Tailwind CDN + Google Fonts kullanır (3 dış istek). Üretim için Tailwind'i
-  derleyip gömmek daha hızlı olur; şu hâliyle hemen açılıyor.
-- Sayfa `Setup.exe`'yi aynı klasörden indirir; yayına alırken `Setup.exe`'yi sitenin köküne koyun.
-- Yerel önizleme: `design\render.png` (Edge headless ile alınmış tam sayfa görüntüsü).
-
-## Kullanıcı akışı
-
-1. `Setup.exe` çalıştır (UAC) → Program Files'a kurar, başlat menüsü kısayolu ve
-   Program Ekle/Kaldır kaydı oluşturur, servisi kurup başlatır.
-2. Sonrasında `DpiFix.exe` üzerinden: Kur/Onar, Durdur, Kaldır, Bağlantı Testi,
-   Site Listesi, Güncelleme.
-3. Pencere kapatılabilir — Windows servisi çalışmaya devam eder, yeniden başlatmada geri gelir.
-
-## Komut satırı
-
-```
-DpiFix.exe --install     sessiz kurulum
-DpiFix.exe --uninstall   kaldırma (DNS dahil geri alır)
-DpiFix.exe --status      servis durumu
-DpiFix.exe --test        bağlantı testi
-DpiFix.exe --update      upstream sürüm kontrolü
-DpiFix.exe --selftest    teşhis → %TEMP%\dpifix-selftest.txt
-```
-
-## v2'de eklenenler
-
-| Özellik | Nasıl |
-|---|---|
-| **Site listesi modu** | `--blacklist` — bypass yalnızca listedeki alan adlarına uygulanır; diğer trafik dokunulmadan akar. Dosya: `C:\ProgramData\DpiFix\blacklist.txt` |
-| **TTL sorunu** | `-5` (auto-ttl içeriyor) bırakıldı; `-9` / `-6` kullanılıyor. Site bozulmasının ana sebebi buydu |
-| **QUIC engelleme** | `-9` içindeki `-q`. Tarayıcı HTTP/3'ten TCP'ye düşer |
-| **DNS-over-HTTPS** | Cloudflare, `netsh`/PowerShell ile. Önceki DNS ayarı `dns-backup.json`'a yazılır, kaldırmada geri yüklenir |
-| **Otomatik yapılandırma** | 3 aday sırayla denenir: `-9 --blacklist` → `-9` → `-6`. Kabul kuralı: zorunlu siteler (google, youtube) açık **ve** listedeki hedeflerden en az biri açık |
-| **Dinamik test listesi** | Test hedefleri `blacklist.txt`'ten okunur (ilk 6 alan adı) — sorunlu siteyi listeye ekleyince prob onu da ölçer |
-| **TLS düzeltmesi** | Prob artık tarayıcı gibi TLS 1.2/1.3 ister. .NET varsayılanı TLS 1.0 olduğu için prob yanlış "engelli" diyordu |
-| **DNS önbelleği** | Her probdan önce `ipconfig /flushdns` |
-| **Ağ izleyici** | `NetworkAddressChanged` + 30 sn debounce; yalnızca mevcut yapılandırma **başarısızsa** yeniden seçer |
-| **Kalıcı günlük** | `C:\ProgramData\DpiFix\log.txt` |
-| **Bütünlük doğrulaması** | Gömülü 7 dosyanın SHA-256'sı çalışma anında karşılaştırılır |
-| **Güncelleme kontrolü** | GitHub releases API, sürüm karşılaştırması (indirme yapmaz, bildirir) |
-| **Hata toparlama** | `sc failure ... restart/5000/15000/60000` |
-
-## Derleme
-
-```
+Kök dizinde:
+```cmd
 build.cmd
 ```
-`.NET Framework` `csc.exe` kullanır — NuGet, SDK, runtime kurulumu yok.
-`build.cmd`, `payload\` altındaki 7 dosyayı DpiFix.exe'ye, DpiFix.exe'yi Setup.exe'ye gömer.
+Tüm ikili dosyalar derlenip `dist\` klasörüne yerleştirilir.
 
-## Teşhis
+---
 
-```
-selftest.exe --selftest
-type %TEMP%\dpifix-selftest.txt
-```
-Çıktı: mimari, gömülü kaynak doğrulaması (7/7), servis durumu ve **servise yazılmış gerçek
-komut satırı**, ağ testleri.
+## ⚠️ Notlar ve Sorumluluk Reddi
 
-## Depo
-
-**https://github.com/ardakargin/dpi-fix** — public, MIT.
-
-Güncelleme akışı:
-
-```
-git add -A
-git commit -m "..."
-git push
-```
-
-`gh` kurulu ama bu kabuğun PATH'inde olmayabilir; gerekirse tam yol:
-`"C:\Program Files\GitHub CLI\gh.exe"`.
-
-İlk commit `Arda Karğın <335661598+ardakargin@users.noreply.github.com>` kimliğiyle
-atıldı, yani GitHub hesabına bağlı görünür.
-
-## Notlar / riskler
-
-- Kurulum ve servis **yönetici** ister; yönetici olmayan oturumda kurulum test edilemez.
-- Kaspersky tamamen kaldırılmadıkça GoodbyeDPI çalışmaz.
-- DNS-over-HTTPS `AllowFallbackToUdp=true` ile kurulur: DoH engellenirse internet kopmaz.
-- Site `index.html` tek dosyadır; `Setup.exe` ile aynı klasöre koyarsanız indirme bağlantısı çalışır.
-- Yasal uyarı değişmedi: kullanım sorumluluğu kullanıcıda.
+- Windows'ta servis kurmak ve ağ sürücüsünü çalıştırmak için **Yönetici Yetkisi** zorunludur.
+- Bilgisayarınızda Kaspersky antivirüs yazılımı varsa GoodbyeDPI/WinDivert sürücüsünü engeller; Kaspersky'ın tamamen kaldırılması önerilir.
+- Bu yazılım yalnızca eğitim ve araştırma amacıyla geliştirilmiştir. Kullanımdan doğan sorumluluk kullanıcıya aittir.
