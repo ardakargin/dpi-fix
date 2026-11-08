@@ -1,12 +1,8 @@
 # Derleme çıktısı — Release ile dağıtılır, depoda tutulmaz
 dist/
 
-# Site HTML and Stitch sources stay local; publish the selected brand assets
-site/*
-!site/assets/
-site/assets/*
-!site/assets/logo.png
-!site/assets/favicon.png
+# Website and Stitch sources/assets remain local-only; app branding lives in assets/brand
+site/
 design/
 
 *.user
