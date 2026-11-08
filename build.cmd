@@ -15,7 +15,7 @@ SET OUT=dist
 IF NOT EXIST "%OUT%" MKDIR "%OUT%"
 
 SET REF=/reference:System.dll,System.Drawing.dll,System.Windows.Forms.dll,System.ServiceProcess.dll
-SET SRC=src\DpiCore.cs src\DpiFix.cs
+SET SRC=src\Ui.cs src\DpiCore.cs src\DpiFix.cs
 SET RES=/resource:payload\x86\goodbyedpi.exe,pl_x86_goodbyedpi_exe ^
  /resource:payload\x86\WinDivert.dll,pl_x86_WinDivert_dll ^
  /resource:payload\x86\WinDivert32.sys,pl_x86_WinDivert32_sys ^

@@ -11,9 +11,11 @@ dpi-fix\
   build.cmd           Derleme (çıktı: dist\)
   src\
     DpiCore.cs        Motor: payload, servis, profil seçimi, DoH, log, ağ izleyici
-    DpiFix.cs         GUI + komut satırı
+    DpiFix.cs         Arayüz + komut satırı
+    Ui.cs             Tema, özel kontroller, TR/EN yerelleştirme
     Setup.cs          Kurulum/kaldırma
     app.manifest      requireAdministrator
+  linux\              Linux yardımcısı (zapret tabanlı, deneysel)
   payload\            Gömülecek ikililer (goodbyedpi + WinDivert) — depoda, derleme girdisi
   LICENSES\           Apache-2.0 / LGPL-3.0 / BSD metinleri
   LICENSE             MIT (bu projenin kodu)
@@ -26,6 +28,25 @@ dpi-fix\
 
 Depoda **bulunmayan**, yalnızca yerelde duran klasörler: `site\` (tanıtım sitesi) ve
 `design\` (Stitch tasarım kaynakları).
+
+## Arayüz ve dil
+
+Arayüz koyu temalı, özel çizilmiş (WinForms üzerine elle çizilmiş yuvarlak paneller/düğmeler).
+Kullanıcı **TR / EN** arasında tek düğmeyle geçer; seçim `settings.ini` içinde `lang=` olarak saklanır.
+Durum kartı canlı servis hâlini, seçili yapılandırmayı ve site listesi sayısını gösterir.
+
+## Platformlar
+
+| | Windows | Linux | macOS |
+|---|---|---|---|
+| Arayüz | GUI (`DpiFix.exe`) | CLI (`linux/dpi-fix.sh`) | — |
+| Motor | GoodbyeDPI + WinDivert | zapret / nfqws | — |
+| Kalıcılık | Windows servisi | systemd | — |
+| Durum | **Destekleniyor** | **Deneysel** | Desteklenmiyor |
+
+Windows arayüzü .NET Framework/WinForms; Linux'ta çalışmaz. Linux tarafı aynı işi zapret'e
+devreder ve yalnızca servis yaşam döngüsünü yönetir — ayrıntı: [linux/README.md](linux/README.md).
+macOS'ta çekirdek seviyesinde eşdeğer bir paket filtresi yolu olmadığı için destek yok.
 
 ## Site tasarımı (Stitch CLI)
 

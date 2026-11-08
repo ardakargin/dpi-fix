@@ -23,7 +23,7 @@ static class Core
     public const string SvcDisplay = "DPI Fix";
     public const string SvcDesc = "Türkiye için DPI/DNS zorlamasını kaldırır (GoodbyeDPI).";
     public const string LegacySvc = "GoodbyeDPI";
-    public const string AppVersion = "2.0";
+    public const string AppVersion = "2.1.0";
     public const string EngineVersion = "0.2.3rc3";
     public const string UpstreamApi = "https://api.github.com/repos/ValdikSS/GoodbyeDPI/releases/latest";
 
@@ -42,6 +42,7 @@ static class Core
     public static bool DohEnabled = true;
     public static bool AutoReprobe = true;
     public static bool VerifyPayload = true;
+    public static string Lang = "tr";
 
     static readonly object Gate = new object();
     public static Action<string> Sink;   // GUI/konsol kancası
@@ -77,6 +78,11 @@ static class Core
                 if (k == "doh") DohEnabled = v;
                 else if (k == "autoreprobe") AutoReprobe = v;
                 else if (k == "verify") VerifyPayload = v;
+                else if (k == "lang")
+                {
+                    string raw = ls[i].Substring(p + 1).Trim().ToLowerInvariant();
+                    if (raw == "en" || raw == "tr") Lang = raw;
+                }
             }
         }
         catch { }
@@ -90,9 +96,43 @@ static class Core
             File.WriteAllText(SettingsPath,
                 "doh=" + (DohEnabled ? "1" : "0") + "\r\n" +
                 "autoreprobe=" + (AutoReprobe ? "1" : "0") + "\r\n" +
-                "verify=" + (VerifyPayload ? "1" : "0") + "\r\n", Encoding.UTF8);
+                "verify=" + (VerifyPayload ? "1" : "0") + "\r\n" +
+                "lang=" + Lang + "\r\n", Encoding.UTF8);
         }
         catch { }
+    }
+
+    // Servise yazılmış komut satırının argüman kısmı (arayüzde gösterilir)
+    public static string CurrentArgsShort()
+    {
+        try
+        {
+            string o;
+            Sc("qc " + SvcName, out o);
+            Match m = Regex.Match(o, "BINARY_PATH_NAME\\s*:\\s*(.+)");
+            if (!m.Success) return "-";
+            string line = m.Groups[1].Value.Trim();
+            int q = line.IndexOf("\" ");
+            string args = q >= 0 ? line.Substring(q + 2) : line;
+            args = args.Replace(BlacklistPath, "blacklist.txt");
+            if (args.Length > 28) args = args.Substring(0, 26) + "..";
+            return args.Length == 0 ? "-" : args;
+        }
+        catch { return "-"; }
+    }
+
+    public static int BlacklistCount()
+    {
+        try
+        {
+            if (!File.Exists(BlacklistPath)) return 0;
+            string[] ls = File.ReadAllLines(BlacklistPath);
+            int n = 0;
+            for (int i = 0; i < ls.Length; i++)
+                if (ls[i].Trim().Length > 3 && !ls[i].Trim().StartsWith("#")) n++;
+            return n;
+        }
+        catch { return 0; }
     }
 
     // ---------------- gömülü payload ----------------
@@ -183,7 +223,7 @@ static class Core
         if (File.Exists(BlacklistPath)) return;
         Directory.CreateDirectory(DataDir);
         File.WriteAllText(BlacklistPath, DefaultBlacklist, Encoding.UTF8);
-        Log("Varsayılan site listesi oluşturuldu: " + BlacklistPath);
+        Log(Loc.T("log.blacklist", BlacklistPath));
     }
 
     public static string ReadBlacklist()
@@ -243,13 +283,7 @@ static class Core
 
     public static string StateText()
     {
-        string s = State();
-        if (s == "running") return "ÇALIŞIYOR";
-        if (s == "stopped") return "DURDU";
-        if (s == "starting") return "BAŞLIYOR";
-        if (s == "stopping") return "DURUYOR";
-        if (s == "absent") return "KURULU DEĞİL";
-        return "BİLİNMİYOR";
+        return Loc.T("st." + State());
     }
 
     public static void KillStrays()
@@ -281,7 +315,7 @@ static class Core
 
     public static bool ApplyDoh()
     {
-        if (!DohEnabled) { Log("DNS-over-HTTPS kapalı (ayar)."); return false; }
+        if (!DohEnabled) { Log(Loc.T("log.dohoff")); return false; }
         string script =
             "$ErrorActionPreference='Stop'\r\n" +
             "$doh='https://cloudflare-dns.com/dns-query'\r\n" +
@@ -303,7 +337,7 @@ static class Core
                 return false;
             }
             DohApplied = true;
-            Log("DNS-over-HTTPS (Cloudflare) etkinleştirildi, önceki DNS ayarı yedeklendi.");
+            Log(Loc.T("log.dohon"));
             return true;
         }
         catch (Exception ex) { Log("DNS-over-HTTPS hatası: " + ex.Message); return false; }
@@ -460,7 +494,7 @@ static class Core
     static void LogProbe(ProbeTarget[] t)
     {
         for (int i = 0; i < t.Length; i++)
-            Log("   " + t[i].Host + " = " + (t[i].Ok ? "erişilebilir" : "engelli") + (t[i].Must ? " (zorunlu)" : ""));
+            Log("   " + t[i].Host + " = " + (t[i].Ok ? Loc.T("log.reach") : Loc.T("log.blocked")) + (t[i].Must ? Loc.T("log.req") : ""));
     }
 
     static string SelectProfile()
@@ -469,7 +503,7 @@ static class Core
         for (int i = 0; i < ps.Length; i++)
         {
             Profile pr = ps[i];
-            Log("Deneniyor: " + pr.Label);
+            Log(Loc.T("log.trying", pr.Label));
             Process p = null;
             try
             {
@@ -482,7 +516,7 @@ static class Core
                 ProbeTarget[] t = ProbeAll();
                 LogProbe(t);
                 if (Pass(t)) return pr.Args;
-                Log("   Uygun değil, sonraki adaya geçiliyor.");
+                Log("   " + Loc.T("log.next"));
             }
             catch (Exception ex) { Log("   hata: " + ex.Message); }
             finally { if (p != null && !p.HasExited) { try { p.Kill(); } catch { } } }
@@ -504,24 +538,24 @@ static class Core
                 EnsureBlacklist();
                 SaveSettings();
 
-                Log("[1/6] Motor dosyaları çıkarılıyor");
+                Log(Loc.T("log.step1"));
                 string warn = ExtractPayload();
                 if (warn != null) Log("   UYARI: " + warn);
 
-                Log("[2/6] Eski servisler durduruluyor");
+                Log(Loc.T("log.step2"));
                 StopService();
                 Sc("stop " + LegacySvc, out o);
                 Sc("delete " + LegacySvc, out o);
 
-                Log("[3/6] DNS katmanı");
+                Log(Loc.T("log.step3"));
                 dnsArgs = "";
                 if (!ApplyDoh())
                 {
                     dnsArgs = "--dns-addr 77.88.8.8 --dns-port 1253 --dnsv6-addr 2a02:6b8::feed:0ff --dnsv6-port 1253";
-                    Log("DNS yönlendirme modu kullanılacak (Yandex, port 1253).");
+                    Log(Loc.T("log.dir", "Yandex :1253"));
                 }
 
-                Log("[4/6] Bu hat için en uygun yapılandırma aranıyor (~20 sn)");
+                Log(Loc.T("log.step4"));
                 string args = SelectProfile();
 
                 if (args == null && DohApplied)
@@ -534,11 +568,11 @@ static class Core
                 if (args == null)
                 {
                     args = Profiles()[0].Args;
-                    Log("Hiçbir yapılandırma doğrulanamadı; varsayılan uygulanıyor.");
+                    Log(Loc.T("log.none"));
                 }
-                else Log("Seçilen: " + args);
+                else Log(Loc.T("log.chosen", args));
 
-                Log("[5/6] Servis oluşturuluyor");
+                Log(Loc.T("log.step5"));
                 Sc("delete " + SvcName, out o);
                 Thread.Sleep(1200);
                 string full = args + (dnsArgs.Length > 0 ? " " + dnsArgs : "");
@@ -550,16 +584,16 @@ static class Core
                 Sc("description " + SvcName + " \"" + SvcDesc + "\"", out o);
                 Sc("failure " + SvcName + " reset= 86400 actions= restart/5000/restart/15000/restart/60000", out o);
 
-                Log("[6/6] Başlatılıyor");
+                Log(Loc.T("log.step6"));
                 Sc("start " + SvcName, out o);
                 Thread.Sleep(1800);
                 ok = State() == "running";
                 Log("Durum: " + StateText());
-                if (!ok) Log("Servis başlamadı. Ayrıntı: " + FirstLines(o, 3));
+                if (!ok) Log(Loc.T("log.svcfail", FirstLines(o, 3)));
             }
             catch (Exception ex) { Log("KURULUM HATASI: " + ex.Message); ok = false; }
-            Log(ok ? "---- Kurulum tamam. Uygulama kapansa da servis çalışır. ----"
-                   : "---- Kurulum tamamlanamadı. ----");
+            Log(ok ? Loc.T("log.done")
+                   : Loc.T("log.failed"));
             return ok;
         }
     }
@@ -586,20 +620,20 @@ static class Core
 
     public static void Test()
     {
-        Log("Bağlantı testi (servis: " + StateText() + ")");
+        Log(Loc.T("log.testhead", StateText()));
         ProbeTarget[] t = ProbeAll();
         LogProbe(t);
-        if (State() != "running") Log("   Not: servis çalışmıyor, sonuç yanıltıcı olabilir.");
-        else if (!Pass(t)) Log("   Sorun sürüyorsa 'Kur / Onar' ile yapılandırmayı değiştirin.");
-        else Log("   Tüm kontroller geçti.");
+        if (State() != "running") Log("   " + Loc.T("log.testwarn"));
+        else if (!Pass(t)) Log("   " + Loc.T("log.testfail"));
+        else Log("   " + Loc.T("log.testok"));
     }
 
     // ---------------- güncelleme kontrolü ----------------
 
     public static void CheckUpdate()
     {
-        Log("Güncelleme kontrolü...");
-        Log("Kurulu motor: GoodbyeDPI " + EngineVersion + " | DpiFix v" + AppVersion);
+        Log(Loc.T("log.updscan"));
+        Log(Loc.T("log.updcur", EngineVersion, AppVersion));
         try
         {
             WebClient wc = new WebClient();
@@ -609,10 +643,10 @@ static class Core
             Match m = Regex.Match(json, "\"tag_name\"\\s*:\\s*\"([^\"]+)\"");
             if (!m.Success) { Log("   Sürüm bilgisi okunamadı."); return; }
             string tag = m.Groups[1].Value.Trim();
-            Log("Upstream son sürüm: " + tag);
+            Log(Loc.T("log.updnew", tag));
             if (tag.TrimStart('v', 'V') != EngineVersion)
-                Log("   Yeni motor sürümü mevcut → https://github.com/ValdikSS/GoodbyeDPI/releases");
-            else Log("   Motor güncel.");
+                Log("   " + Loc.T("log.updhas") + " → https://github.com/ValdikSS/GoodbyeDPI/releases");
+            else Log("   " + Loc.T("log.updnone"));
         }
         catch (Exception ex) { Log("   Kontrol başarısız: " + ex.Message); }
     }
@@ -641,11 +675,11 @@ static class Core
         try
         {
             if (State() != "running") return;
-            Log("Ağ değişikliği algılandı; mevcut yapılandırma test ediliyor...");
+            Log(Loc.T("log.netchg"));
             ProbeTarget[] t = ProbeAll();
-            if (Pass(t)) { Log("Mevcut yapılandırma hâlâ çalışıyor, değişiklik yapılmadı."); return; }
+            if (Pass(t)) { Log(Loc.T("log.netok")); return; }
             LogProbe(t);
-            Log("Mevcut yapılandırma çalışmıyor; yeniden seçiliyor.");
+            Log(Loc.T("log.netbad"));
             Install();
         }
         catch (Exception ex) { Log("Ağ yeniden kontrol hatası: " + ex.Message); }
