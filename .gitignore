@@ -1,8 +1,12 @@
 # Derleme çıktısı — Release ile dağıtılır, depoda tutulmaz
 dist/
 
-# Tanıtım sitesi ve Stitch tasarım kaynakları — depoda paylaşılmaz
-site/
+# Site HTML and Stitch sources stay local; publish the selected brand assets
+site/*
+!site/assets/
+site/assets/*
+!site/assets/logo.png
+!site/assets/favicon.png
 design/
 
 *.user

@@ -36,6 +36,11 @@ IF "!ENGINE_RES!"=="" (
   >> "src\EngineInfo.g.cs" echo static class EngineInfoPresent { public const bool Value = true; }
 )
 
+SET BRAND_RES=
+IF EXIST "assets\brand\dpifix-mark.png" SET BRAND_RES=/resource:assets\brand\dpifix-mark.png,brand_mark
+SET ICON_RES=
+IF EXIST "assets\brand\dpifix.ico" SET ICON_RES=/win32icon:assets\brand\dpifix.ico
+
 SET OUT=dist
 IF NOT EXIST "%OUT%" MKDIR "%OUT%"
 
@@ -51,17 +56,17 @@ SET RES=/resource:payload\x86\goodbyedpi.exe,pl_x86_goodbyedpi_exe ^
 
 REM ---------- 1) DpiFix.exe : motorlar gomulu tek dosya uygulama ----------
 "%CSC%" /nologo /target:winexe /codepage:65001 /optimize+ /out:%OUT%\DpiFix.exe ^
-  /win32manifest:src\app.manifest %REF% %RES% %SRC%
+  /win32manifest:src\app.manifest !ICON_RES! !BRAND_RES! %REF% %RES% %SRC%
 IF ERRORLEVEL 1 (echo [HATA] DpiFix.exe derlenemedi. & POPD & EXIT /B 1)
 echo [OK] %OUT%\DpiFix.exe
 
 REM ---------- 2) selftest.exe : konsol teshis (UAC istemez) ----------
-"%CSC%" /nologo /target:exe /codepage:65001 /out:%OUT%\selftest.exe %REF% %RES% %SRC% >NUL 2>&1
+"%CSC%" /nologo /target:exe /codepage:65001 /out:%OUT%\selftest.exe !BRAND_RES! %REF% %RES% %SRC% >NUL 2>&1
 IF EXIST "%OUT%\selftest.exe" echo [OK] %OUT%\selftest.exe
 
 REM ---------- 3) Setup.exe : kurulum dosyasi (DpiFix.exe gomulu) ----------
 "%CSC%" /nologo /target:winexe /codepage:65001 /optimize+ /out:%OUT%\Setup.exe ^
-  /win32manifest:src\app.manifest %REF% ^
+  /win32manifest:src\app.manifest !ICON_RES! %REF% ^
   /resource:%OUT%\DpiFix.exe,payload_app ^
   src\Setup.cs
 IF ERRORLEVEL 1 (echo [HATA] Setup.exe derlenemedi. & POPD & EXIT /B 1)

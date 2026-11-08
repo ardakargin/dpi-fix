@@ -23,7 +23,7 @@ static class Core
     public const string SvcDisplay = "DPI Fix";
     public const string SvcDesc = "Türkiye için DPI/DNS zorlamasını kaldırır (GoodbyeDPI).";
     public const string LegacySvc = "GoodbyeDPI";
-    public const string AppVersion = "2.2.0";
+    public const string AppVersion = "2.2.1";
     public const string EngineVersion = "0.2.3rc3";
     public const string UpstreamApi = "https://api.github.com/repos/ValdikSS/GoodbyeDPI/releases/latest";
 

@@ -9,34 +9,44 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 
-/// Kalkan logosu
+/// Kullanıcının sağladığı marka işaretini kaynaklardan çizen kontrol.
 class LogoBox : Control
 {
+    static Image mark;
+
     public LogoBox()
     {
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
                  ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
-        Size = new Size(34, 34);
+        Size = new Size(36, 36);
+        AccessibleName = "DPI Fix logo";
+        LoadMark();
+    }
+
+    static void LoadMark()
+    {
+        if (mark != null) return;
+        try
+        {
+            using (Stream s = System.Reflection.Assembly.GetExecutingAssembly()
+                .GetManifestResourceStream("brand_mark"))
+            {
+                if (s != null)
+                {
+                    using (Image image = Image.FromStream(s)) mark = new Bitmap(image);
+                }
+            }
+        }
+        catch { mark = null; }
     }
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        Graphics g = e.Graphics;
-        g.SmoothingMode = SmoothingMode.AntiAlias;
-        float w = Width - 2, h = Height - 2;
-        PointF[] pts = new PointF[] {
-            new PointF(1 + w / 2, 1),
-            new PointF(1 + w, 1 + h * 0.22f),
-            new PointF(1 + w * 0.86f, 1 + h * 0.70f),
-            new PointF(1 + w / 2, 1 + h),
-            new PointF(1 + w * 0.14f, 1 + h * 0.70f),
-            new PointF(1, 1 + h * 0.22f)
-        };
-        using (LinearGradientBrush b = new LinearGradientBrush(
-            new Rectangle(0, 0, Width, Height), Theme.Accent, Color.FromArgb(0x38, 0xBD, 0xF8), 90f))
-            g.FillPolygon(b, pts);
-        using (Pen p = new Pen(Color.FromArgb(0x04, 0x25, 0x2B), 1.6f))
-            g.DrawPolygon(p, pts);
+        if (mark == null) { LoadMark(); if (mark == null) return; }
+        e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+        e.Graphics.SmoothingMode = SmoothingMode.HighQuality;
+        e.Graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+        e.Graphics.DrawImage(mark, new Rectangle(0, 0, Width, Height));
     }
 }
 
@@ -54,6 +64,7 @@ class MainForm : Form
     public MainForm()
     {
         Text = "DPI Fix";
+        try { this.Icon = System.Drawing.Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
         ClientSize = new Size(780, 700);
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
