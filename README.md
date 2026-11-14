@@ -21,7 +21,7 @@ Derin Paket İncelemesi (DPI) ve DNS kaynaklı erişim sorunları için açık k
 - **DPI Fix Engine:** Windows servisinde çalışan, harici crate kullanmayan yerel Rust motoru.
 - **Alan adı kapsamı:** Motor yalnızca listedeki alan adları için tanıyabildiği HTTP veya TLS başlangıç paketlerini işler.
 - **Kalıcı Windows Servisi:** Doğrulanan profil Windows açılışında otomatik çalışır. Beklenmeyen kapanışlarda Windows servis kurtarma ayarları devreye girer.
-- **DNS-over-HTTPS (DoH):** Yeni kurulumlarda kapalıdır. Açıldığında Windows'ta yapılandırılmış Cloudflare DoH kaydını kullanır. Servis durdurulurken veya kaldırılırken önceki DNS ayarı geri yüklenir.
+- **DNS-over-HTTPS (DoH):** Kurulumda ve Ayarlar’da isteğe bağlıdır. Gerektiğinde Cloudflare DoH, etkin IPv4 bağlantısında denenir. Önceki DNS ve DoH ayarları deneme başarısız olduğunda, servis durdurulurken veya kaldırılırken geri yüklenir.
 - **Bağlantı kontrolü:** Örnek sitelerde HTTPS yanıtlarını motor kapalıyken, profil denemesinde ve servis çalışırken karşılaştırır. Çalışan bir site erişimini kaybederse veya hiçbir hedefte erişim kazanımı ölçülmezse servis otomatik başlangıca alınmaz. Kontrol, listedeki ilk altı geçerli hedef ve üç genel siteyle sınırlıdır.
 - **Dil desteği:** Ana pencere Türkçe, İngilizce, Almanca, Fransızca ve İspanyolca. Yeni kurulumlar desteklenen Windows dilini kullanır.
 - **Koyu Modern Tasarım:** Tamamen özel çizilmiş kontroller, canlı durum izleme, log paneli ve koyu başlık çubuğu.

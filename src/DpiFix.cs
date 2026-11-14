@@ -504,7 +504,12 @@ static class Program
             catch { }
             Core.Sink = delegate (string s) { try { Console.WriteLine(s); } catch { } };
 
-            if (cmd == "--install") { bool ok = Core.Install(); Environment.Exit(ok ? 0 : 1); }
+            if (cmd == "--install")
+            {
+                if (Array.IndexOf(args, "--try-doh") >= 0) Core.DohEnabled = true;
+                bool ok = Core.Install();
+                Environment.Exit(ok ? 0 : 1);
+            }
             else if (cmd == "--uninstall")
             {
                 try { Core.Uninstall(); }

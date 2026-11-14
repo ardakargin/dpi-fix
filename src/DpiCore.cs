@@ -23,7 +23,7 @@ static class Core
     public const string SvcDisplay = "DPI Fix";
     public const string SvcDesc = "DPI Fix native engine";
     public const string LegacySvc = "GoodbyeDPI";
-    public const string AppVersion = "2.3.0";
+    public const string AppVersion = "2.3.1";
     public const string EngineVersion = EngineInfo.Version;
     public const string ReleasesApi = "https://api.github.com/repos/ardakargin/dpi-fix/releases/latest";
 
@@ -317,17 +317,25 @@ static class Core
         string script =
             "$ErrorActionPreference='Stop'\r\n" +
             "$doh='https://cloudflare-dns.com/dns-query'\r\n" +
-            "foreach($ip in @('1.1.1.1','1.0.0.1')){if(-not (Get-DnsClientDohServerAddress -ServerAddress $ip -ErrorAction SilentlyContinue | Where-Object {$_.DohTemplate -eq $doh -and $_.AutoUpgrade})){throw 'Cloudflare DoH is not configured in Windows'}}\r\n" +
-            "$idx=(Get-NetRoute -DestinationPrefix '0.0.0.0/0' | Sort-Object RouteMetric | Select-Object -First 1).InterfaceIndex\r\n" +
+            "$servers=@(Get-DnsClientDohServerAddress -ServerAddress '1.1.1.1','1.0.0.1')\r\n" +
+            "if($servers.Count -ne 2 -or @($servers | Where-Object {$_.DohTemplate -ne $doh}).Count){throw 'Cloudflare DoH templates unavailable in Windows'}\r\n" +
+            "$idx=(Find-NetRoute -RemoteIPAddress '1.1.1.1' | Where-Object {$_.DestinationPrefix} | Select-Object -First 1).InterfaceIndex\r\n" +
             "if(-not $idx){throw 'aktif ag arayuzu bulunamadi'}\r\n" +
             "if(Test-Path '" + DnsBackupPath + "'){throw 'DNS backup already exists'}\r\n" +
             "$adapter=Get-NetAdapter -InterfaceIndex $idx\r\n" +
             "$guid='{' + ([guid]$adapter.InterfaceGuid).ToString() + '}'\r\n" +
             "$key='HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters\\Interfaces\\' + $guid\r\n" +
             "$static=(Get-ItemProperty -LiteralPath $key).NameServer\r\n" +
-            "$dns=Get-DnsClientServerAddress -InterfaceIndex $idx -AddressFamily IPv4\r\n" +
-            "@{InterfaceIndex=$idx;InterfaceGuid=$guid;Automatic=[string]::IsNullOrWhiteSpace($static);ServerAddresses=@($dns.ServerAddresses)} | ConvertTo-Json -Compress | Set-Content -Encoding UTF8 '" + DnsBackupPath + "'\r\n" +
-            "Set-DnsClientServerAddress -InterfaceIndex $idx -ServerAddresses 1.1.1.1,1.0.0.1\r\n" +
+            "$addresses=@(); if(![string]::IsNullOrWhiteSpace($static)){$addresses=@($static -split '[,\\s]+' | Where-Object {$_})}\r\n" +
+            "$previous=@($servers | Where-Object {!$_.AutoUpgrade -or $_.AllowFallbackToUdp} | Select-Object ServerAddress,DohTemplate,AutoUpgrade,AllowFallbackToUdp)\r\n" +
+            "$backup='" + DnsBackupPath + "'\r\n" +
+            "@{InterfaceIndex=$idx;InterfaceGuid=$guid;Automatic=[string]::IsNullOrWhiteSpace($static);ServerAddresses=$addresses;DohBefore=$previous;IPv4Only=$true} | ConvertTo-Json -Depth 4 -Compress | Set-Content -Encoding UTF8 ($backup + '.tmp')\r\n" +
+            "Move-Item -LiteralPath ($backup + '.tmp') -Destination $backup\r\n" +
+            "foreach($s in $previous){Set-DnsClientDohServerAddress -ServerAddress $s.ServerAddress -AutoUpgrade $true -AllowFallbackToUdp $false}\r\n" +
+            "netsh.exe interface ipv4 set dnsservers name=$idx source=static address=1.1.1.1 validate=no\r\n" +
+            "if($LASTEXITCODE -ne 0){throw 'Could not set IPv4 DNS'}\r\n" +
+            "netsh.exe interface ipv4 add dnsservers name=$idx address=1.0.0.1 index=2 validate=no\r\n" +
+            "if($LASTEXITCODE -ne 0){throw 'Could not set secondary IPv4 DNS'}\r\n" +
             "Clear-DnsClientCache\r\n" +
             "Write-Output 'OK'\r\n";
         try
@@ -356,7 +364,16 @@ static class Core
             "foreach($e in @($b)){\r\n" +
             "  $idx=$e.InterfaceIndex\r\n" +
             "  if($e.InterfaceGuid){$adapter=Get-NetAdapter | Where-Object {([guid]$_.InterfaceGuid) -eq ([guid]$e.InterfaceGuid)}; if(-not $adapter){throw 'Original DNS adapter unavailable'}; $idx=$adapter.ifIndex}\r\n" +
-            "  if(!$e.Automatic -and $e.ServerAddresses -and $e.ServerAddresses.Count -gt 0){Set-DnsClientServerAddress -InterfaceIndex $idx -ServerAddresses $e.ServerAddresses}\r\n" +
+            "  if($e.IPv4Only){\r\n" +
+            "    if($e.Automatic){netsh.exe interface ipv4 set dnsservers name=$idx source=dhcp; if($LASTEXITCODE -ne 0){throw 'Could not restore automatic IPv4 DNS'}}\r\n" +
+            "    else{\r\n" +
+            "      $addresses=@($e.ServerAddresses); if(!$addresses.Count){throw 'Static IPv4 DNS backup is empty'}\r\n" +
+            "      netsh.exe interface ipv4 set dnsservers name=$idx source=static address=$($addresses[0]) validate=no\r\n" +
+            "      if($LASTEXITCODE -ne 0){throw 'Could not restore IPv4 DNS'}\r\n" +
+            "      for($i=1;$i -lt $addresses.Count;$i++){netsh.exe interface ipv4 add dnsservers name=$idx address=$($addresses[$i]) index=$($i+1) validate=no; if($LASTEXITCODE -ne 0){throw 'Could not restore additional IPv4 DNS'}}\r\n" +
+            "    }\r\n" +
+            "    foreach($s in $e.DohBefore){Set-DnsClientDohServerAddress -ServerAddress $s.ServerAddress -DohTemplate $s.DohTemplate -AutoUpgrade ([bool]$s.AutoUpgrade) -AllowFallbackToUdp ([bool]$s.AllowFallbackToUdp)}\r\n" +
+            "  }elseif(!$e.Automatic -and $e.ServerAddresses -and $e.ServerAddresses.Count -gt 0){Set-DnsClientServerAddress -InterfaceIndex $idx -ServerAddresses $e.ServerAddresses}\r\n" +
             "  else{Set-DnsClientServerAddress -InterfaceIndex $idx -ResetServerAddresses}\r\n" +
             "}\r\n" +
             "Clear-DnsClientCache\r\n" +
@@ -406,6 +423,7 @@ static class Core
     {
         public string Host; public bool Must;
         public int Status;
+        public string Failure = "timeout";
         public bool Ok { get { return Status >= 200 && Status < 400; } }
         public ProbeTarget(string host, bool must) { Host = host; Must = must; }
     }
@@ -450,7 +468,7 @@ static class Core
         for (int i = 0; i < t.Length; i++)
         {
             ProbeTarget cur = t[i];
-            ts[i] = new Thread(delegate () { cur.Status = HttpsStatus(cur.Host, 4000); });
+            ts[i] = new Thread(delegate () { ProbeHttps(cur, 4000); });
             ts[i].IsBackground = true;
             ts[i].Start();
         }
@@ -465,37 +483,44 @@ static class Core
 
     static bool Pass(ProbeTarget[] t)
     {
-        bool must = true, any = false;
-        for (int i = 0; i < t.Length; i++)
-        {
-            if (t[i].Must) must = must && t[i].Ok;
-            else any = any || t[i].Ok;
-        }
-        return must && any;
+        return Array.TrueForAll(t, target => target.Ok);
     }
 
-    static int HttpsStatus(string host, int ms)
+    static void ProbeHttps(ProbeTarget target, int ms)
     {
         TcpClient tcp = null;
         try
         {
-            tcp = new TcpClient();
-            host = new System.Globalization.IdnMapping().GetAscii(host);
-            IAsyncResult ar = tcp.BeginConnect(host, 443, null, null);
+            target.Failure = "dns";
+            string host = new System.Globalization.IdnMapping().GetAscii(target.Host);
+            IPAddress[] addresses = Dns.GetHostAddresses(host);
+            if (addresses.Length == 0) return;
+            target.Failure = "tcp";
+            tcp = Socket.OSSupportsIPv6 ? new TcpClient(AddressFamily.InterNetworkV6) : new TcpClient();
+            if (Socket.OSSupportsIPv6) tcp.Client.DualMode = true;
+            IAsyncResult ar = tcp.BeginConnect(addresses, 443, null, null);
             using (WaitHandle wait = ar.AsyncWaitHandle)
             {
-                if (!wait.WaitOne(ms, false)) return 0;
+                if (!wait.WaitOne(ms, false)) return;
                 tcp.EndConnect(ar);
             }
             tcp.ReceiveTimeout = ms;
             tcp.SendTimeout = ms;
-            using (SslStream ssl = new SslStream(tcp.GetStream(), false, CertOk))
+            target.Failure = "tls";
+            using (SslStream ssl = new SslStream(tcp.GetStream(), false,
+                delegate(object sender, X509Certificate cert, X509Chain chain, SslPolicyErrors errors)
+                {
+                    if (errors == SslPolicyErrors.None) return true;
+                    target.Failure = "cert";
+                    return false;
+                }))
             {
                 // Tarayıcı gibi modern TLS iste. .NET varsayılanı TLS 1.0/1.1 olabiliyor;
                 // sunucular bunu reddedince prob yanlış "engelli" sonucu veriyor.
                 SslProtocols modern = SslProtocols.Tls12 | (SslProtocols)12288; // 12288 = Tls13
                 try { ssl.AuthenticateAsClient(host, null, modern, false); }
                 catch (ArgumentException) { ssl.AuthenticateAsClient(host, null, SslProtocols.Tls12, false); }
+                target.Failure = "http";
                 byte[] request = Encoding.ASCII.GetBytes("GET / HTTP/1.1\r\nHost: " + host +
                     "\r\nUser-Agent: DPI-Fix-Connectivity/1.0\r\nConnection: close\r\n\r\n");
                 ssl.Write(request, 0, request.Length);
@@ -504,13 +529,21 @@ static class Core
                 while (used < prefix.Length)
                 {
                     int read = ssl.Read(prefix, used, prefix.Length - used);
-                    if (read == 0) return 0;
+                    if (read == 0) return;
                     used += read;
                 }
-                return ReadHttpStatus(prefix);
+                target.Status = ReadHttpStatus(prefix);
             }
         }
-        catch { return 0; }
+        catch (SocketException ex)
+        {
+            if (target.Failure == "dns" && ex.SocketErrorCode == SocketError.TimedOut)
+                target.Failure = "timeout";
+        }
+        catch (ArgumentException) { }
+        catch (IOException) { }
+        catch (AuthenticationException) { }
+        catch (InvalidOperationException) { }
         finally { if (tcp != null) { try { tcp.Close(); } catch { } } }
     }
 
@@ -532,11 +565,6 @@ static class Core
         catch { }
     }
 
-    static bool CertOk(object sender, X509Certificate cert, X509Chain chain, SslPolicyErrors errors)
-    {
-        return errors == SslPolicyErrors.None;
-    }
-
     static void LogProbe(ProbeTarget[] t)
     {
         for (int i = 0; i < t.Length; i++)
@@ -545,7 +573,7 @@ static class Core
 
     static string FormatProbe(ProbeTarget target)
     {
-        string result = target.Status == 0 ? Loc.T("log.blocked") : "HTTP " + target.Status;
+        string result = target.Status == 0 ? Loc.T("probe." + target.Failure) : "HTTP " + target.Status;
         return result + (target.Must ? Loc.T("log.req") : "");
     }
 
@@ -585,11 +613,21 @@ static class Core
                 psi.WorkingDirectory = Path.GetDirectoryName(ExePath);
                 psi.UseShellExecute = false;
                 psi.CreateNoWindow = true;
+                psi.RedirectStandardError = true;
                 p = Process.Start(psi);
-                Thread.Sleep(2500);
+                if (p.WaitForExit(2500))
+                {
+                    Log(Loc.T("log.engineexit", p.ExitCode, FirstLines(p.StandardError.ReadToEnd(), 2)));
+                    continue;
+                }
                 ProbeTarget[] t = ProbeAll(baseline);
                 LogProbe(t);
-                if (p.HasExited || !PreservesConnectivity(baseline, t))
+                if (p.HasExited)
+                {
+                    Log(Loc.T("log.engineexit", p.ExitCode, FirstLines(p.StandardError.ReadToEnd(), 2)));
+                    continue;
+                }
+                if (!PreservesConnectivity(baseline, t))
                 {
                     Log("   " + Loc.T("log.next"));
                     continue;
@@ -630,6 +668,8 @@ static class Core
                 if (!RestoreDns()) return false;
                 EnsureBlacklist();
                 ProbeTarget[] baseline = ProbeAll();
+                Log(Loc.T("log.baseline"));
+                LogProbe(baseline);
 
                 Log(Loc.T("log.step1"));
                 string warn = ExtractPayload();
@@ -645,6 +685,8 @@ static class Core
                 if (args == null)
                 {
                     Log(Loc.T("log.none"));
+                    if (!DohEnabled && Array.Exists(baseline, t => !t.Must && (t.Failure == "dns" || t.Failure == "cert") && t.Status == 0))
+                        Log(Loc.T("log.trydoh"));
                     return false;
                 }
 

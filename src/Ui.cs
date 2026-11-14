@@ -268,8 +268,18 @@ static class Loc
         Add("lang.other", "English", "Türkçe");
 
         // --- günlük / motor mesajları ---
-        Add("log.step1", "[1/6] Motor dosyaları çıkarılıyor", "[1/6] Extracting engine files");
-        Add("log.step2", "[2/6] Eski servisler durduruluyor", "[2/6] Stopping previous services");
+        Add("log.step1", "Motor dosyaları çıkarılıyor", "Extracting engine files");
+        Add("log.step2", "DPI Fix servisi durduruluyor", "Stopping the DPI Fix service");
+        Add("log.baseline", "Motor kapalıyken bağlantı sonuçları", "Connection results with the engine stopped");
+        Add("probe.dns", "DNS çözümlemesi başarısız", "DNS lookup failed");
+        Add("probe.tcp", "TCP bağlantısı kurulamadı", "TCP connection failed");
+        Add("probe.tls", "TLS bağlantısı kurulamadı", "TLS handshake failed");
+        Add("probe.cert", "TLS sertifikası doğrulanamadı", "TLS certificate validation failed");
+        Add("probe.http", "Geçerli bir HTTP yanıtı alınamadı", "No valid HTTP response");
+        Add("probe.timeout", "Bağlantı testi zaman aşımına uğradı", "Connection check timed out");
+        Add("log.trydoh", "Ayarlar’dan DNS-over-HTTPS’i seçip Kur / Onar ile tekrar deneyebilirsiniz.",
+                          "Enable DNS-over-HTTPS in Settings and try Install / Repair again.");
+        Add("log.engineexit", "Motor durdu ({0}). {1}", "The engine exited ({0}). {1}");
         Add("log.step3", "[3/6] DNS katmanı", "[3/6] DNS layer");
         Add("log.step4", "[4/6] Bu hat için en uygun yapılandırma aranıyor (~20 sn)",
                          "[4/6] Finding the best configuration for this network (~20s)");

@@ -14,7 +14,7 @@ static class SetupCore
 {
     public const string AppName = "DPI Fix";
     public const string Pub = "DpiFix";
-    public const string DisplayVer = "2.3.0";
+    public const string DisplayVer = "2.3.1";
     const string ResApp = "payload_app";
 
     public static string TargetDir
@@ -143,7 +143,7 @@ static class SetupCore
         catch { }
     }
 
-    public static bool Install(bool runServiceInstall)
+    public static bool Install(bool runServiceInstall, bool tryDoh = false)
     {
         Log("---- KURULUM ----");
         if (!ExtractApp()) return false;
@@ -160,9 +160,13 @@ static class SetupCore
         {
             Log("Servis kuruluyor (birkaç saniye)...");
             long mark = LogMark();
-            int code = RunExe(TargetExe, "--install");
+            int code = RunExe(TargetExe, tryDoh ? "--install --try-doh" : "--install");
             LogTail(mark);
-            if (code != 0) { Log("Servis kurulumu başarısız (kod " + code + "). Uygulamadan 'Kur / Onar' deneyin."); return false; }
+            if (code != 0)
+            {
+                Log("Uygulama kuruldu. Bu bağlantıda doğrulanmış bir servis profili etkinleştirilemedi (kod " + code + ").");
+                return false;
+            }
             Log("Servis kuruldu ve başlatıldı.");
         }
 
@@ -243,13 +247,13 @@ class SetupForm : Form
 {
     TextBox log;
     Button btnGo;
-    CheckBox chkService;
+    CheckBox chkService, chkDoh;
     Label status;
 
     public SetupForm()
     {
         Text = "DPI Fix Kurulumu";
-        ClientSize = new Size(560, 420);
+        ClientSize = new Size(560, 448);
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
@@ -284,23 +288,30 @@ class SetupForm : Form
         chkService.AutoSize = true;
         Controls.Add(chkService);
 
+        chkDoh = new CheckBox();
+        chkDoh.Text = "Gerekirse Windows DNS-over-HTTPS ayarını dene";
+        chkDoh.Location = new Point(18, 140);
+        chkDoh.AutoSize = true;
+        Controls.Add(chkDoh);
+        chkService.CheckedChanged += delegate { chkDoh.Enabled = chkService.Checked; };
+
         btnGo = new Button();
         btnGo.Text = SetupCore.Installed() ? "Yeniden Kur" : "Kur";
-        btnGo.Location = new Point(18, 146);
+        btnGo.Location = new Point(18, 172);
         btnGo.Size = new Size(120, 32);
         btnGo.Click += ClickGo;
         Controls.Add(btnGo);
 
         Button btnRemove = new Button();
         btnRemove.Text = "Kaldır";
-        btnRemove.Location = new Point(146, 146);
+        btnRemove.Location = new Point(146, 172);
         btnRemove.Size = new Size(90, 32);
         btnRemove.Click += ClickRemove;
         Controls.Add(btnRemove);
 
         Button btnFolder = new Button();
         btnFolder.Text = "Klasörü Aç";
-        btnFolder.Location = new Point(244, 146);
+        btnFolder.Location = new Point(244, 172);
         btnFolder.Size = new Size(100, 32);
         btnFolder.Click += delegate { try { Process.Start("explorer.exe", SetupCore.TargetDir); } catch { } };
         Controls.Add(btnFolder);
@@ -311,7 +322,7 @@ class SetupForm : Form
         log.ScrollBars = ScrollBars.Vertical;
         log.BackColor = Color.FromArgb(250, 250, 250);
         log.Font = new Font("Consolas", 8.5F);
-        log.Location = new Point(18, 190);
+        log.Location = new Point(18, 216);
         log.Size = new Size(524, 212);
         Controls.Add(log);
 
@@ -332,17 +343,19 @@ class SetupForm : Form
         btnGo.Enabled = false;
         Cursor = Cursors.WaitCursor;
         bool svc = chkService.Checked;
+        bool tryDoh = chkDoh.Checked;
         ThreadPool.QueueUserWorkItem(delegate
         {
             bool ok = false;
-            try { ok = SetupCore.Install(svc); }
+            try { ok = SetupCore.Install(svc, tryDoh); }
             catch (Exception ex) { Log("HATA: " + ex.Message); }
             BeginInvoke((MethodInvoker)delegate
             {
                 btnGo.Enabled = true;
                 Cursor = Cursors.Default;
-                status.Text = SetupCore.Installed() ? "Durum: kurulu" : "Durum: kurulu değil";
-                status.ForeColor = SetupCore.Installed() ? Color.SeaGreen : Color.DimGray;
+                bool installed = SetupCore.Installed();
+                status.Text = installed ? (ok ? "Durum: kurulu" : "Uygulama kurulu, servis kurulumu tamamlanmadı") : "Durum: kurulu değil";
+                status.ForeColor = installed && ok ? Color.SeaGreen : Color.DimGray;
                 if (ok && MessageBox.Show("Kurulum tamamlandı. Uygulama şimdi açılsın mı?", "DPI Fix",
                         MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
                 {
@@ -389,7 +402,7 @@ static class SetupProgram
         if (cmd == "--install")
         {
             SetupCore.Sink = delegate (string s) { try { Console.WriteLine(s); } catch { } };
-            SetupCore.Install(true);
+            Environment.ExitCode = SetupCore.Install(true, Array.IndexOf(args, "--try-doh") >= 0) ? 0 : 1;
             return;
         }
 
