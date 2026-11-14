@@ -269,6 +269,10 @@ static class Loc
 
         // --- günlük / motor mesajları ---
         Add("log.step1", "Motor dosyaları çıkarılıyor", "Extracting engine files");
+        Add("log.payloadreused", "Paketle eşleşen dosya kullanılıyor: {0}", "Reusing matching file: {0}");
+        Add("log.payloaderror", "Dosya hazırlanamadı: {0}. {1}", "Could not prepare file: {0}. {1}");
+        Add("log.driverbusy", "Sürücü dosyası değiştirilemedi. Windows’u yeniden başlatıp kurulumu tekrar deneyin.",
+                              "The driver file could not be replaced. Restart Windows and retry setup.");
         Add("log.step2", "DPI Fix servisi durduruluyor", "Stopping the DPI Fix service");
         Add("log.baseline", "Motor kapalıyken bağlantı sonuçları", "Connection results with the engine stopped");
         Add("probe.dns", "DNS çözümlemesi başarısız", "DNS lookup failed");

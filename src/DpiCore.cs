@@ -23,7 +23,7 @@ static class Core
     public const string SvcDisplay = "DPI Fix";
     public const string SvcDesc = "DPI Fix native engine";
     public const string LegacySvc = "GoodbyeDPI";
-    public const string AppVersion = "2.3.1";
+    public const string AppVersion = "2.3.2";
     public const string EngineVersion = EngineInfo.Version;
     public const string ReleasesApi = "https://api.github.com/repos/ardakargin/dpi-fix/releases/latest";
 
@@ -175,32 +175,42 @@ static class Core
             string target = Path.Combine(PayloadDir, r.Rel.Substring(slash + 1));
             try
             {
-                using (Stream s = asm.GetManifestResourceStream(r.Name))
+                if (File.Exists(target) && string.Equals(Sha256File(target), r.Sha, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (s == null) { Log("   gömülü kaynak yok: " + r.Name); warn = "Gömülü kaynak eksik: " + r.Name; continue; }
-                    byte[] buf = new byte[s.Length];
-                    int off = 0;
-                    while (off < buf.Length)
+                    Log(Loc.T("log.payloadreused", Path.GetFileName(target)));
+                    continue;
+                }
+
+                string staged = target + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                try
+                {
+                    using (Stream s = asm.GetManifestResourceStream(r.Name))
                     {
-                        int n = s.Read(buf, off, buf.Length - off);
-                        if (n <= 0) break;
-                        off += n;
+                        if (s == null) throw new InvalidDataException("Missing embedded resource: " + r.Name);
+                        using (FileStream file = new FileStream(staged, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                            s.CopyTo(file);
                     }
-                    File.WriteAllBytes(target, buf);
+                    if (VerifyPayload && !string.Equals(Sha256File(staged), r.Sha, StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidDataException("Integrity check failed: " + r.Rel);
+                    if (File.Exists(target)) File.Replace(staged, target, null);
+                    else File.Move(staged, target);
+                }
+                finally
+                {
+                    if (File.Exists(staged)) File.Delete(staged);
                 }
             }
-            catch (Exception ex) { Log("   yazılamadı " + target + ": " + ex.Message); warn = "Dosya yazılamadı: " + target; continue; }
-
-            if (VerifyPayload)
+            catch (IOException ex)
             {
-                string h = Sha256File(target);
-                if (!string.Equals(h, r.Sha, StringComparison.OrdinalIgnoreCase))
-                {
-                    Log("   BÜTÜNLÜK UYARISI: " + r.Rel);
-                    Log("     beklenen " + r.Sha);
-                    Log("     bulunan  " + h);
-                    warn = "Bütünlük doğrulanamadı: " + r.Rel;
-                }
+                warn = Loc.T("log.payloaderror", target, ex.Message);
+                Log(warn);
+                if (Path.GetExtension(target).Equals(".sys", StringComparison.OrdinalIgnoreCase) && File.Exists(target))
+                    Log(Loc.T("log.driverbusy"));
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                warn = Loc.T("log.payloaderror", target, ex.Message);
+                Log(warn);
             }
         }
 

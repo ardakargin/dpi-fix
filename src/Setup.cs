@@ -14,7 +14,7 @@ static class SetupCore
 {
     public const string AppName = "DPI Fix";
     public const string Pub = "DpiFix";
-    public const string DisplayVer = "2.3.1";
+    public const string DisplayVer = "2.3.2";
     const string ResApp = "payload_app";
 
     public static string TargetDir
