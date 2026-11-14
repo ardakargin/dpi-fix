@@ -21,6 +21,7 @@ UNIT=/etc/systemd/system/${SVC}.service
 CONF_DIR=/etc/dpi-fix
 ARGS_FILE=${CONF_DIR}/nfqws.args
 DEFAULT_ARGS="--dpi-desync=split2 --dpi-desync-split-pos=2 --dpi-desync-fooling=md5sig"
+ENV_FILE=${CONF_DIR}/nfqws.env
 
 need_root() { [ "$(id -u)" -eq 0 ] || { echo "Bu komut root gerektirir (sudo)." >&2; exit 1; }; }
 
@@ -30,6 +31,15 @@ find_nfqws() {
   done
   command -v nfqws 2>/dev/null && return 0
   return 1
+}
+
+write_environment() {
+  local args="$1"
+  [[ "$args" != *$'\n'* && "$args" != *$'\r'* ]] || return 1
+  args=${args//\\/\\\\}
+  args=${args//\"/\\\"}
+  printf 'NFQWS_ARGS="%s"\n' "$args" > "$ENV_FILE.tmp"
+  mv -f "$ENV_FILE.tmp" "$ENV_FILE"
 }
 
 cmd_install() {
@@ -43,6 +53,7 @@ cmd_install() {
 
   mkdir -p "$CONF_DIR"
   [ -f "$ARGS_FILE" ] || { echo "$DEFAULT_ARGS" > "$ARGS_FILE"; echo "Varsayılan argümanlar yazıldı: $ARGS_FILE"; }
+  write_environment "$(cat "$ARGS_FILE")"
 
   cat > "$UNIT" <<EOF
 [Unit]
@@ -52,7 +63,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=${nfqws} \$(cat ${ARGS_FILE})
+EnvironmentFile=${ENV_FILE}
+ExecStart="${nfqws}" \$NFQWS_ARGS
 Restart=always
 RestartSec=5
 
@@ -80,16 +92,20 @@ cmd_params() {
   need_root
   [ $# -ge 1 ] || { echo "Kullanım: sudo $0 params \"--dpi-desync=...\"" >&2; exit 1; }
   mkdir -p "$CONF_DIR"
-  echo "$*" > "$ARGS_FILE"
-  systemctl restart "$SVC" 2>/dev/null || true
+  write_environment "$*"
+  printf '%s\n' "$*" > "$ARGS_FILE"
+  if [ -f "$UNIT" ]; then systemctl restart "$SVC"; fi
   echo "Argümanlar güncellendi: $*"
 }
 
 cmd_test() {
   echo "Bağlantı testi:"
   for h in www.google.com www.youtube.com discord.com; do
-    code=$(curl -s -o /dev/null -m 8 -w "%{http_code}" "https://$h" 2>/dev/null || echo "000")
-    if [ "$code" = "000" ]; then echo "  $h = ENGELLİ"; else echo "  $h = OK ($code)"; fi
+    if code=$(curl -s -o /dev/null -m 8 -w "%{http_code}" "https://$h"); then
+      echo "  $h = OK ($code)"
+    else
+      echo "  $h = erişilemedi"
+    fi
   done
   command -v systemctl >/dev/null && systemctl is-active --quiet "$SVC" \
     && echo "  servis = çalışıyor" || echo "  servis = durmuş/kurulu değil"

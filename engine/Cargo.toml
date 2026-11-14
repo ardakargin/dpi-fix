@@ -1,6 +1,6 @@
 [package]
 name = "dpifix-engine"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "DPI Fix için Rust motoru - WinDivert üzerinde çalışan DPI atlatma motoru"
 license = "MIT"

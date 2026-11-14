@@ -1,26 +1,28 @@
 # DPI Fix — Çok Platformlu DPI / DNS Zorlaması Kaldırıcı
 
-Türkiye'deki internet servis sağlayıcılarının uyguladığı Derin Paket İncelemesi (DPI) ve DNS engellemelerini hız kaybı olmadan yerel düzeyde aşan açık kaynaklı yazılım.
+Derin Paket İncelemesi (DPI) ve DNS kaynaklı erişim sorunları için açık kaynaklı bir masaüstü uygulaması. Sonuçlar ağ, servis sağlayıcı ve hedef siteye göre değişebilir.
 
 **Referans Projeler:**
 - [ValdikSS/GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI) (Orijinal DPI circumvention motoru)
 - [cagritaskn/GoodbyeDPI-Turkey](https://github.com/cagritaskn/GoodbyeDPI-Turkey) (Türkiye ISP kuralları & macOS uyarlaması)
+- [ByeDPI](https://github.com/hufrea/byedpi) (yerel SOCKS proxy, macOS yardımcısının motoru ve doğrudan Windows servis mimarisi için referans)
+- [zapret](https://github.com/bol-van/zapret) (Linux yardımcısının `nfqws` motoru) ve [zapret2](https://github.com/bol-van/zapret2) (düşük kaynaklı cihazlara yönelik mimari referansı)
 
-**Son Sürüm İndir (Windows):**  
-👉 [GitHub Releases: Setup.exe](https://github.com/ardakargin/dpi-fix/releases/latest/download/Setup.exe) (Tek tıkla kurulum)
+**Windows indirmeleri**
+
+- [DPI Fix 2.3.0 ön sürüm](https://github.com/ardakargin/dpi-fix/releases/tag/v2.3.0) — DPI Fix Engine ile Windows x64 paketi.
+- [Son kararlı sürüm](https://github.com/ardakargin/dpi-fix/releases/latest) — Önceki Windows motorunu içerir.
 
 ---
 
 ## 🌟 Öne Çıkan Özellikler
 
-- **Çift Motor Desteği (C & Rust):**
-  - **GoodbyeDPI 0.2.3rc3 (C):** Yıllardır test edilmiş, kararlı varsayılan motor.
-  - **DPI Fix Engine (Rust):** Sıfır harici crate ile Rust dilinde sıfırdan yazılmış, yerel FFI üzerinden WinDivert ile çalışan modern motor (`AYARLAR → Rust motoru`).
-- **Site Listesi Modu (`--blacklist`):** Yalnızca hedeflenen alan adlarına müdahale edilir (`discord.com`, `instagram.com` vb.). Diğer tüm internet trafiği orijinal hızında ve dokunulmadan akar.
-- **Kalıcı Windows Servisi:** Kurulumdan sonra uygulama arayüzünü kapatabilirsiniz. Bilgisayar yeniden başlatıldığında otomatik çalışır, çökme durumunda 5/15/60 sn içinde kendini toparlar.
-- **DNS-over-HTTPS (DoH):** Cloudflare şifreli DNS desteği; uygulama kaldırıldığında eski DNS ayarları otomatik geri yüklenir.
-- **QUIC / HTTP3 Engelleme (`-q`):** Tarayıcıyı zorunlu TCP'ye düşürerek parçalama stratejilerinin tam verimle çalışmasını sağlar.
-- **İki Dil Desteği (TR / EN):** Arayüzün sağ üst köşesinden tek tıkla dil değişimi.
+- **DPI Fix Engine:** Windows servisinde çalışan, harici crate kullanmayan yerel Rust motoru.
+- **Alan adı kapsamı:** Motor yalnızca listedeki alan adları için tanıyabildiği HTTP veya TLS başlangıç paketlerini işler.
+- **Kalıcı Windows Servisi:** Doğrulanan profil Windows açılışında otomatik çalışır. Beklenmeyen kapanışlarda Windows servis kurtarma ayarları devreye girer.
+- **DNS-over-HTTPS (DoH):** Yeni kurulumlarda kapalıdır. Açıldığında Windows'ta yapılandırılmış Cloudflare DoH kaydını kullanır. Servis durdurulurken veya kaldırılırken önceki DNS ayarı geri yüklenir.
+- **Bağlantı kontrolü:** Örnek sitelerde HTTPS yanıtlarını motor kapalıyken, profil denemesinde ve servis çalışırken karşılaştırır. Çalışan bir site erişimini kaybederse veya hiçbir hedefte erişim kazanımı ölçülmezse servis otomatik başlangıca alınmaz. Kontrol, listedeki ilk altı geçerli hedef ve üç genel siteyle sınırlıdır.
+- **Dil desteği:** Ana pencere Türkçe, İngilizce, Almanca, Fransızca ve İspanyolca. Yeni kurulumlar desteklenen Windows dilini kullanır.
 - **Koyu Modern Tasarım:** Tamamen özel çizilmiş kontroller, canlı durum izleme, log paneli ve koyu başlık çubuğu.
 
 ---
@@ -29,9 +31,9 @@ Türkiye'deki internet servis sağlayıcılarının uyguladığı Derin Paket İ
 
 | Platform | Arayüz | Motor | Servis Yöntemi | Durum |
 |---|---|---|---|---|
-| **Windows 10 / 11** (32 & 64-bit) | Modern GUI (`DpiFix.exe`) | GoodbyeDPI (C) & DPI Fix (Rust) | Windows NT Servisi | **Tam Destek** |
-| **Linux** (systemd) | CLI (`linux/dpi-fix.sh`) | zapret / nfqws | systemd service | **Destekleniyor** |
-| **macOS 12+** (Intel & Apple Silicon) | CLI (`macos/dpi-fix.sh`) | byedpi (`ciadpi`) | launchd LaunchDaemon | **Destekleniyor** |
+| **Windows 10 / 11** (x64) | Modern GUI (`DpiFix.exe`) | DPI Fix Engine | Windows NT Servisi | **x64 paket** |
+| **Linux** (systemd) | CLI (`linux/dpi-fix.sh`) | zapret / nfqws | systemd service | **Deneysel** |
+| **macOS 12+** (Intel & Apple Silicon) | CLI (`macos/dpi-fix.sh`) | byedpi (`ciadpi`) | launchd LaunchDaemon | **Deneysel** |
 
 - **Linux Kurulumu:** Ayrıntılar için [linux/README.md](linux/README.md)
 - **macOS Kurulumu:** Ayrıntılar için [macos/README.md](macos/README.md)
@@ -40,19 +42,14 @@ Türkiye'deki internet servis sağlayıcılarının uyguladığı Derin Paket İ
 
 ## 🦀 Özel Rust Motoru (`engine/`)
 
-Bu proje, GoodbyeDPI C motoruna ek olarak bağımsız bir **Rust motoru** barındırır:
-
-- **Sıfır Harici Crate:** Yalnızca Rust standart kütüphanesi kullanılır.
-- **Dinamik FFI:** `WinDivert.lib` gerektirmez; `WinDivert.dll` çalışma anında dinamik yüklenir.
-- **Tam Protokol Ayrıştırma:** IPv4, IPv6, TCP, UDP ayrıştırma, birin tümleyeni sağlama toplamı (checksum) hesaplama.
-- **SNI ve Host Analizi:** TLS ClientHello paketinden Server Name Indication (SNI) ve HTTP Host başlığını gerçek zamanlı tespit etme.
-- **Parçalama & Sahte Paket:** SNI içinden bölme, ters sırada segment gönderimi, geçmiş TCP SEQ, bozuk checksum ve TTL manipülasyonu.
-- **25 Birim Testi:** Tüm paket ve parçalama mantığı `cargo test` ile doğrulanmıştır.
+Windows paketi DPI Fix Engine, WinDivert DLL ve WinDivert sürücüsünü içerir.
+Motor tek süreçte çalışır. TCP paketleri için iki tamponu yeniden kullanır ve bağlantı başına önbellek tutmaz.
+HTTP ve TLS başlangıçları alan adı listesine göre değerlendirilir. QUIC, ECH ve parçalı TLS el sıkışmaları bu sürümün kapsamı dışındadır.
 
 Rust motorunu test etmek için:
 ```bash
 cd engine
-cargo test --release
+cargo test --release --locked
 ```
 
 ---
@@ -63,7 +60,7 @@ cargo test --release
 dpi-fix\
   build.cmd             Windows derleme betiği (.NET + Rust motoru -> dist\)
   src\
-    Ui.cs               Koyu tema, özel kontroller, TR/EN yerelleştirme
+    Ui.cs               Koyu tema, özel kontroller ve yerelleştirme
     DpiCore.cs          Servis yönetimi, DNS katmanı, test mekanizması
     DpiFix.cs           Modern uygulama arayüzü
     Setup.cs            Tek dosya kurulum ve kaldırma aracı
@@ -75,17 +72,18 @@ dpi-fix\
       engine.rs         Paket döngüsü & baypas stratejileri
       packet.rs         IP/TCP/UDP ayrıştırıcı & checksum
       sniff.rs          TLS SNI & HTTP Host ayrıştırıcı
+      service.rs        Yerel Windows servis giriş noktası
       hostlist.rs       Site listesi eşleme algoritması
       windivert.rs      WinDivert FFI katmanı
   linux\                Linux zapret/systemd yönetim betikleri
   macos\                macOS byedpi/launchd yönetim betikleri
-  payload\              WinDivert sürücüleri & GoodbyeDPI ikilileri (derleme girdisi)
+  payload\              WinDivert DLL ve sürücüsü (derleme girdisi)
   LICENSES\             Apache-2.0, LGPL-3.0, BSD lisans metinleri
   LICENSE               MIT Lisansı (bu projenin kodu)
   THIRD-PARTY.md        Üçüncü taraf bileşen uyum beyanları
   dist\                 DERLEME ÇIKTILARI (Release dosyaları):
     Setup.exe           Kurulum aracı (DpiFix.exe içinde gömülü)
-    DpiFix.exe          Uygulama (tüm motorlar gömülü, taşınabilir)
+    DpiFix.exe          Uygulama (DPI Fix Engine gömülü)
     selftest.exe        Teşhis aracı (yönetici yetkisi istemez)
 ```
 
@@ -96,7 +94,7 @@ dpi-fix\
 Gereksinimler:
 - Windows 10/11
 - .NET Framework 4.x (`csc.exe` dahildir)
-- (Opsiyonel) Rust 1.80+ (Rust motorunu derlemek için; yoksa GoodbyeDPI ile derlenir)
+- Rust 1.80+ ve x86_64-pc-windows-msvc hedefi
 
 Kök dizinde:
 ```cmd
@@ -109,5 +107,4 @@ Tüm ikili dosyalar derlenip `dist\` klasörüne yerleştirilir.
 ## ⚠️ Notlar ve Sorumluluk Reddi
 
 - Windows'ta servis kurmak ve ağ sürücüsünü çalıştırmak için **Yönetici Yetkisi** zorunludur.
-- Bilgisayarınızda Kaspersky antivirüs yazılımı varsa GoodbyeDPI/WinDivert sürücüsünü engeller; Kaspersky'ın tamamen kaldırılması önerilir.
 - Bu yazılım yalnızca eğitim ve araştırma amacıyla geliştirilmiştir. Kullanımdan doğan sorumluluk kullanıcıya aittir.

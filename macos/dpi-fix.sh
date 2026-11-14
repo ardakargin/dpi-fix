@@ -24,7 +24,9 @@ LABEL="com.dpifix.macos"
 PLIST="/Library/LaunchDaemons/${LABEL}.plist"
 PORT=1080
 HOST="127.0.0.1"
-STATE_FILE="/var/run/dpifix-prev-proxy.txt"
+STATE_DIR="/Library/Application Support/DPI Fix"
+STATE_FILE="$STATE_DIR/previous-proxy"
+export LC_ALL=C
 
 need_root() { [ "$(id -u)" -eq 0 ] || { echo "Bu işlem yönetici yetkisi gerektirir: sudo $0 $*" >&2; exit 1; }; }
 
@@ -38,23 +40,50 @@ find_ciadpi() {
 active_service() {
   # Aktif ağ arayüzünü (Wi-Fi, Ethernet vb.) belirle
   local dev
-  dev=$(route -n get default 2>/dev/null | awk '/interface:/{print $2}')
+  dev=$(route -n get default 2>/dev/null | awk '/interface:/{print $2}' || true)
   [ -n "$dev" ] || dev="en0"
   networksetup -listallhardwareports | awk -v d="$dev" '
     $0 ~ "Hardware Port:" { name=$0; sub(/Hardware Port: /, "", name) }
-    $0 ~ "Device: " d { print name }
-  ' | head -1
+    $0 == "Device: " d && !found { print name; found=1 }
+  '
+}
+
+save_proxy() {
+  local srv="$1" previous
+  previous=$(networksetup -getsocksfirewallproxy "$srv")
+  if printf '%s\n' "$previous" | grep -q '^Authenticated Proxy Enabled: 1$'; then
+    echo "Authenticated SOCKS proxy detected. Existing settings preserved." >&2
+    return 1
+  fi
+  (umask 077; mkdir -p "$STATE_DIR"; printf '%s\n%s\n' "$srv" "$previous" > "$STATE_FILE.tmp")
+  mv -f "$STATE_FILE.tmp" "$STATE_FILE"
+}
+
+restore_proxy() {
+  [ -f "$STATE_FILE" ] || return 0
+  local srv server port enabled
+  srv=$(head -n 1 "$STATE_FILE")
+  server=$(sed -n 's/^Server: //p' "$STATE_FILE")
+  port=$(sed -n 's/^Port: //p' "$STATE_FILE")
+  enabled=$(sed -n 's/^Enabled: //p' "$STATE_FILE")
+  case "$enabled" in
+    Yes) networksetup -setsocksfirewallproxy "$srv" "$server" "$port"
+         networksetup -setsocksfirewallproxystate "$srv" on ;;
+    No)  networksetup -setsocksfirewallproxystate "$srv" off
+         if [ -n "$server" ] && [ "${port:-0}" != 0 ]; then
+           networksetup -setsocksfirewallproxy "$srv" "$server" "$port"
+           networksetup -setsocksfirewallproxystate "$srv" off
+         fi ;;
+    *)   return 1 ;;
+  esac
+  rm -f "$STATE_FILE"
 }
 
 cmd_install() {
   need_root
-  local bin
+  local bin srv
   if ! bin=$(find_ciadpi); then
-    echo "ciadpi bulunamadı. Homebrew ile kuruluyor..."
-    if command -v brew >/dev/null 2>&1; then
-      brew install byedpi || true
-      bin=$(find_ciadpi || true)
-    fi
+    bin=""
   fi
 
   if [ -z "$bin" ]; then
@@ -63,6 +92,9 @@ cmd_install() {
     exit 1
   fi
   echo "Motor: $bin"
+  srv=$(active_service)
+  if [ -f "$STATE_FILE" ]; then srv=$(head -n 1 "$STATE_FILE"); fi
+  if [ -n "$srv" ] && [ ! -f "$STATE_FILE" ]; then save_proxy "$srv"; fi
 
   # launchd servisini oluştur
   cat > "$PLIST" <<EOF
@@ -103,13 +135,14 @@ EOF
   sleep 1
 
   # Sistem SOCKS5 proxy ayarını yap
-  local srv
-  srv=$(active_service)
   if [ -n "$srv" ]; then
     echo "Ağ arayüzü: $srv"
-    networksetup -getsocksfirewallproxy "$srv" > "$STATE_FILE" 2>/dev/null || true
-    networksetup -setsocksfirewallproxy "$srv" "$HOST" "$PORT"
-    networksetup -setsocksfirewallproxystate "$srv" on
+    if ! networksetup -setsocksfirewallproxy "$srv" "$HOST" "$PORT" ||
+       ! networksetup -setsocksfirewallproxystate "$srv" on; then
+      restore_proxy
+      launchctl unload "$PLIST"
+      return 1
+    fi
     echo "SOCKS5 proxy aktif: $HOST:$PORT ($srv)"
   fi
 
@@ -118,16 +151,10 @@ EOF
 
 cmd_remove() {
   need_root
+  restore_proxy
   launchctl unload "$PLIST" 2>/dev/null || true
   rm -f "$PLIST"
 
-  local srv
-  srv=$(active_service)
-  if [ -n "$srv" ]; then
-    networksetup -setsocksfirewallproxystate "$srv" off 2>/dev/null || true
-    echo "Proxy devre dışı bırakıldı: $srv"
-  fi
-  rm -f "$STATE_FILE"
   echo "macOS servisi ve proxy ayarları kaldırıldı."
 }
 
@@ -146,8 +173,9 @@ cmd_test() {
 case "${1:-}" in
   install) cmd_install ;;
   remove)  cmd_remove ;;
-  start)   need_root; launchctl load -w "$PLIST" ;;
-  stop)    need_root; launchctl unload "$PLIST" ;;
+  start)   cmd_install ;;
+  stop)    need_root; restore_proxy; launchctl unload "$PLIST" ;;
+  restart) need_root; restore_proxy; launchctl unload "$PLIST" 2>/dev/null || true; cmd_install ;;
   status)
     launchctl list | grep "$LABEL" || echo "Servis çalışmıyor."
     ;;

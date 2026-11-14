@@ -13,19 +13,20 @@ impl HostList {
         self.hosts.is_empty()
     }
 
+    #[cfg(test)]
     pub fn len(&self) -> usize {
         self.hosts.len()
     }
 
     /// Dosyadan okur. Bulunamazsa boş liste döner (çağıran karar verir).
-    pub fn load(path: &str) -> std::io::Result<HostList> {
+    pub fn load(path: &std::path::Path) -> std::io::Result<HostList> {
         let text = std::fs::read_to_string(path)?;
         Ok(Self::parse(&text))
     }
 
     pub fn parse(text: &str) -> HostList {
         let mut hosts = Vec::new();
-        for raw in text.lines() {
+        for raw in text.trim_start_matches('\u{feff}').lines() {
             let line = raw.trim();
             if line.is_empty() || line.starts_with('#') {
                 continue;
@@ -45,6 +46,8 @@ impl HostList {
             }
             hosts.push(h);
         }
+        hosts.sort_unstable();
+        hosts.dedup();
         HostList { hosts }
     }
 
@@ -53,9 +56,9 @@ impl HostList {
         let h = host.to_ascii_lowercase();
         let h = h.split(':').next().unwrap_or(&h);
         let h = h.trim_end_matches('.');
-        self.hosts.iter().any(|p| {
-            h == p.as_str() || (h.len() > p.len() && h.ends_with(p.as_str()) && h.as_bytes()[h.len() - p.len() - 1] == b'.')
-        })
+        std::iter::once(h)
+            .chain(h.match_indices('.').map(|(index, _)| &h[index + 1..]))
+            .any(|suffix| self.hosts.binary_search_by(|entry| entry.as_str().cmp(suffix)).is_ok())
     }
 }
 
@@ -104,3 +107,7 @@ mod tests {
         assert!(!list.matches("discord.com"));
     }
 }
+    #[test]
+    fn strips_utf8_bom_from_windows_site_list() {
+        assert!(HostList::parse("\u{feff}example.com\r\n").matches("www.example.com"));
+    }

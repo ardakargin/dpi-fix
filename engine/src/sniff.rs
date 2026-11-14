@@ -18,8 +18,8 @@ pub fn tls_sni(payload: &[u8]) -> Option<Sni<'_>> {
         return None;
     }
     let record_len = be16(payload, 3)? as usize;
-    let rec_end = (5 + record_len).min(payload.len());
-    if record_len < 4 {
+    let rec_end = 5 + record_len;
+    if record_len < 4 || rec_end > payload.len() {
         return None;
     }
     // Handshake başlığı
@@ -27,7 +27,10 @@ pub fn tls_sni(payload: &[u8]) -> Option<Sni<'_>> {
         return None;
     }
     let hs_len = be24(payload, 6)? as usize;
-    let hs_end = (9 + hs_len).min(rec_end);
+    let hs_end = 9 + hs_len;
+    if hs_end > rec_end {
+        return None;
+    }
 
     let mut p = 9usize;
     // client_version(2) + random(32)
@@ -56,7 +59,10 @@ pub fn tls_sni(payload: &[u8]) -> Option<Sni<'_>> {
     // extensions
     let ext_total = be16(payload, p)? as usize;
     p += 2;
-    let ext_end = (p + ext_total).min(hs_end);
+    let ext_end = p + ext_total;
+    if ext_end != hs_end {
+        return None;
+    }
 
     while p + 4 <= ext_end {
         let etype = be16(payload, p)?;
@@ -67,9 +73,15 @@ pub fn tls_sni(payload: &[u8]) -> Option<Sni<'_>> {
         }
         if etype == EXT_SERVER_NAME {
             // server_name_list: list_len(2), type(1), name_len(2), name
+            if elen < 2 {
+                return None;
+            }
             let list_len = be16(payload, edata)? as usize;
             let mut q = edata + 2;
-            let list_end = (q + list_len).min(edata + elen);
+            let list_end = q + list_len;
+            if list_end != edata + elen {
+                return None;
+            }
             while q + 3 <= list_end {
                 let ntype = payload[q];
                 let nlen = be16(payload, q + 1)? as usize;
@@ -77,7 +89,7 @@ pub fn tls_sni(payload: &[u8]) -> Option<Sni<'_>> {
                 if nstart + nlen > list_end {
                     break;
                 }
-                if ntype == 0 {
+                if ntype == 0 && nlen > 0 {
                     let host = std::str::from_utf8(&payload[nstart..nstart + nlen]).ok()?;
                     return Some(Sni { host, offset: nstart, len: nlen });
                 }
@@ -116,19 +128,6 @@ pub fn http_host(payload: &[u8]) -> Option<String> {
     None
 }
 
-/// QUIC (UDP/443) Initial paketi mi? (uzun başlık biti + sürüm alanı)
-pub fn is_quic(payload: &[u8]) -> bool {
-    if payload.len() < 7 {
-        return false;
-    }
-    // Uzun başlık: 0x80 biti set
-    if payload[0] & 0x80 == 0 {
-        return false;
-    }
-    let ver = u32::from_be_bytes([payload[1], payload[2], payload[3], payload[4]]);
-    ver == 0x0000_0001 || ver == 0x6b33_43cf
-}
-
 fn be16(b: &[u8], o: usize) -> Option<u16> {
     if o + 2 > b.len() {
         return None;
@@ -156,7 +155,7 @@ mod tests {
         sni.extend((host.len() as u16).to_be_bytes());
         sni.extend(host.as_bytes());
         let mut sni_ext = Vec::new();
-        sni_ext.extend(((sni.len() + 2) as u16).to_be_bytes()); // list length
+        sni_ext.extend((sni.len() as u16).to_be_bytes()); // list length
         sni_ext.extend(&sni);
         ext.extend(EXT_SERVER_NAME.to_be_bytes());
         ext.extend((sni_ext.len() as u16).to_be_bytes());
@@ -212,6 +211,14 @@ mod tests {
     }
 
     #[test]
+    fn incomplete_tls_record_is_left_unmodified() {
+        let mut hello = client_hello("example.com");
+        let length = u16::from_be_bytes([hello[3], hello[4]]) + 1;
+        hello[3..5].copy_from_slice(&length.to_be_bytes());
+        assert!(tls_sni(&hello).is_none());
+    }
+
+    #[test]
     fn extracts_http_host() {
         let req = b"GET /index.html HTTP/1.1\r\nHost: x.com\r\nUser-Agent: t\r\n\r\n";
         assert_eq!(http_host(req).as_deref(), Some("x.com"));
@@ -220,13 +227,4 @@ mod tests {
         assert!(http_host(b"NOTAMETHOD x\r\n").is_none());
     }
 
-    #[test]
-    fn detects_quic_initial() {
-        let mut p = vec![0u8; 20];
-        p[0] = 0xc0;
-        p[1..5].copy_from_slice(&1u32.to_be_bytes());
-        assert!(is_quic(&p));
-        p[0] = 0x40; // kısa başlık
-        assert!(!is_quic(&p));
-    }
 }

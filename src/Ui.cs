@@ -187,6 +187,20 @@ class FlatCheck : Control
 static class Loc
 {
     public static string Lang = "tr";
+    public static readonly string[] Codes = { "tr", "en", "de", "fr", "es" };
+    public static readonly string[] Names = { "Türkçe", "English", "Deutsch", "Français", "Español" };
+    static readonly Dictionary<string, string[]> International = new Dictionary<string, string[]>();
+
+    public static string SystemLanguage()
+    {
+        string code = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+        return Array.IndexOf(Codes, code) >= 0 ? code : "en";
+    }
+
+    static void AddInternational(string key, string de, string fr, string es)
+    {
+        International[key] = new[] { de, fr, es };
+    }
 
     static readonly Dictionary<string, string> TR = new Dictionary<string, string>();
     static readonly Dictionary<string, string> EN = new Dictionary<string, string>();
@@ -196,8 +210,8 @@ static class Loc
     static Loc()
     {
         Add("app.title", "DPI / DNS Zorlaması Kaldırıcı", "DPI / DNS Block Remover");
-        Add("app.sub", "GoodbyeDPI {0} motoru · otomatik yapılandırma · kalıcı servis",
-                      "GoodbyeDPI {0} engine · automatic setup · persistent service");
+        Add("app.sub", "DPI Fix Engine {0} · otomatik yapılandırma · kalıcı servis",
+                      "DPI Fix Engine {0} · automatic setup · persistent service");
         Add("sec.status", "DURUM", "STATUS");
         Add("sec.actions", "İŞLEMLER", "ACTIONS");
         Add("sec.settings", "AYARLAR", "SETTINGS");
@@ -226,9 +240,8 @@ static class Loc
         Add("btn.close", "Kapat", "Close");
 
         Add("chk.doh", "DNS-over-HTTPS (Cloudflare)", "DNS-over-HTTPS (Cloudflare)");
-        Add("chk.watch", "Ağ değişince otomatik yeniden seç", "Re-detect when network changes");
+        Add("chk.watch", "Ağ değişince bağlantıyı test et", "Test after network changes");
         Add("chk.verify", "Dosya bütünlüğü doğrulaması", "Payload integrity check");
-        Add("chk.rust", "Rust motoru (deneysel)", "Rust engine (experimental)");
         Add("log.engine", "Motor: {0}", "Engine: {0}");
         Add("log.enginefb", "Rust motoru kullanılamıyor, GoodbyeDPI'ya dönüldü.",
                             "Rust engine unavailable, falling back to GoodbyeDPI.");
@@ -264,8 +277,8 @@ static class Loc
         Add("log.step6", "[6/6] Başlatılıyor", "[6/6] Starting");
         Add("log.trying", "Deneniyor: {0}", "Trying: {0}");
         Add("log.next", "Uygun değil, sonraki adaya geçiliyor.", "Not suitable, moving to next candidate.");
-        Add("log.none", "Hiçbir yapılandırma doğrulanamadı; varsayılan uygulanıyor.",
-                        "No configuration verified; applying default.");
+        Add("log.none", "Mevcut erişimi koruyup bir hedef siteye erişim kazandıran profil bulunamadı.",
+                        "No profile restored a target site while preserving existing access.");
         Add("log.chosen", "Seçilen: {0}", "Selected: {0}");
         Add("log.svcfail", "Servis başlamadı. Ayrıntı: {0}", "Service did not start. Detail: {0}");
         Add("log.done", "Kurulum tamam. Uygulama kapansa da servis çalışır.",
@@ -279,30 +292,65 @@ static class Loc
         Add("log.testwarn", "Not: servis çalışmıyor, sonuç yanıltıcı olabilir.",
                             "Note: service is not running, result may be misleading.");
         Add("log.reach", "erişilebilir", "reachable");
-        Add("log.blocked", "engelli", "blocked");
+        Add("log.blocked", "erişilemedi", "unreachable");
         Add("log.req", " (zorunlu)", " (required)");
         Add("log.updscan", "Güncelleme kontrolü...", "Checking for updates...");
-        Add("log.updcur", "Kurulu motor: GoodbyeDPI {0} | DpiFix v{1}",
-                          "Installed engine: GoodbyeDPI {0} | DpiFix v{1}");
+        Add("log.updcur", "Kurulu motor: DPI Fix Engine {0} | DpiFix v{1}",
+                          "Installed engine: DPI Fix Engine {0} | DpiFix v{1}");
         Add("log.updnew", "Upstream son sürüm: {0}", "Latest upstream: {0}");
-        Add("log.updhas", "Yeni motor sürümü mevcut.", "A newer engine version is available.");
-        Add("log.updnone", "Motor güncel.", "Engine is up to date.");
+        Add("log.updhas", "Yeni DPI Fix sürümü mevcut.", "A newer DPI Fix version is available.");
+        Add("log.updnone", "DPI Fix güncel.", "DPI Fix is up to date.");
         Add("log.netchg", "Ağ değişikliği algılandı; mevcut yapılandırma test ediliyor...",
                           "Network change detected; testing current configuration...");
         Add("log.netok", "Mevcut yapılandırma hâlâ çalışıyor, değişiklik yapılmadı.",
                          "Current configuration still works, no change made.");
-        Add("log.netbad", "Mevcut yapılandırma çalışmıyor; yeniden seçiliyor.",
-                          "Current configuration stopped working; re-detecting.");
+        Add("log.netbad", "Ağ değişikliğinden sonra bağlantı kontrolü başarısız.",
+                          "Connectivity check failed after the network change.");
         Add("log.dohon", "DNS-over-HTTPS (Cloudflare) etkinleştirildi, önceki DNS ayarı yedeklendi.",
                          "DNS-over-HTTPS (Cloudflare) enabled, previous DNS setting backed up.");
         Add("log.dohoff", "DNS-over-HTTPS kapalı (ayar).", "DNS-over-HTTPS disabled (setting).");
         Add("log.dir", "Yönlendirme modu: {0}", "Redirect mode: {0}");
         Add("log.blacklist", "Varsayılan site listesi oluşturuldu: {0}", "Default site list created: {0}");
+
+        AddInternational("app.title", "DPI Fix", "DPI Fix", "DPI Fix");
+        AddInternational("app.sub", "Verbindung und Windows-Dienst", "Connexion et service Windows", "Conexión y servicio de Windows");
+        AddInternational("sec.status", "STATUS", "ÉTAT", "ESTADO");
+        AddInternational("sec.actions", "AKTIONEN", "ACTIONS", "ACCIONES");
+        AddInternational("sec.settings", "EINSTELLUNGEN", "PARAMÈTRES", "AJUSTES");
+        AddInternational("sec.log", "PROTOKOLL", "JOURNAL", "REGISTRO");
+        AddInternational("st.running", "AKTIV", "ACTIF", "ACTIVO");
+        AddInternational("st.stopped", "GESTOPPT", "ARRÊTÉ", "DETENIDO");
+        AddInternational("st.starting", "STARTET", "DÉMARRAGE", "INICIANDO");
+        AddInternational("st.stopping", "STOPPT", "ARRÊT EN COURS", "DETENIENDO");
+        AddInternational("st.absent", "NICHT INSTALLIERT", "NON INSTALLÉ", "SIN INSTALAR");
+        AddInternational("st.unknown", "UNBEKANNT", "INCONNU", "DESCONOCIDO");
+        AddInternational("lbl.service", "Dienst", "Service", "Servicio");
+        AddInternational("lbl.engine", "Engine", "Moteur", "Motor");
+        AddInternational("lbl.profile", "Konfiguration", "Configuration", "Configuración");
+        AddInternational("lbl.sites", "Websites", "Sites", "Sitios");
+        AddInternational("lbl.entries", "{0} Domains", "{0} domaines", "{0} dominios");
+        AddInternational("btn.install", "Installieren", "Installer", "Instalar");
+        AddInternational("btn.stop", "Stoppen", "Arrêter", "Detener");
+        AddInternational("btn.remove", "Entfernen", "Supprimer", "Desinstalar");
+        AddInternational("btn.test", "Verbindungstest", "Tester la connexion", "Probar conexión");
+        AddInternational("btn.list", "Websites", "Liste des sites", "Lista de sitios");
+        AddInternational("btn.update", "Updates", "Mises à jour", "Actualizaciones");
+        AddInternational("btn.log", "Protokoll", "Ouvrir le journal", "Abrir registro");
+        AddInternational("chk.watch", "Bei Netzwechsel testen", "Tester après un changement de réseau", "Probar al cambiar de red");
+        AddInternational("chk.verify", "Dateiintegrität prüfen", "Vérifier les fichiers", "Verificar archivos");
+        AddInternational("confirm.title", "Entfernen", "Supprimer", "Desinstalar");
+        AddInternational("confirm.remove", "Dienst entfernen und DNS wiederherstellen?", "Supprimer le service et restaurer le DNS ?", "¿Desinstalar el servicio y restaurar el DNS?");
+        AddInternational("hint.ready", "Bereit zur Installation.", "Prêt pour l’installation.", "Listo para instalar.");
+        AddInternational("hint.tip", "Fügen Sie eine Website zur Liste hinzu und installieren Sie den Dienst erneut.", "Ajoutez un site à la liste, puis réinstallez le service.", "Añade un sitio a la lista y vuelve a instalar el servicio.");
+        AddInternational("hint.log", "Protokoll: {0}", "Journal : {0}", "Registro: {0}");
     }
 
     public static string T(string key)
     {
-        Dictionary<string, string> d = Lang == "en" ? EN : TR;
+        int language = Array.IndexOf(Codes, Lang);
+        string[] localized;
+        if (language >= 2 && International.TryGetValue(key, out localized)) return localized[language - 2];
+        Dictionary<string, string> d = language == 0 ? TR : EN;
         string v;
         return d.TryGetValue(key, out v) ? v : key;
     }

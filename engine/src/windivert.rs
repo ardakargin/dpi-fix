@@ -12,6 +12,7 @@ pub const LAYER_NETWORK: c_int = 0;
 
 /// WinDivert adres yapısı (WINDIVERT_ADDRESS, tam 80 bayt)
 #[derive(Clone, Copy)]
+#[repr(C, align(8))]
 pub struct Address(pub [u8; 80]);
 
 impl Address {
@@ -19,16 +20,26 @@ impl Address {
         Address([0u8; 80])
     }
 
+    pub fn mark_tcp_checksums(&mut self, ipv4: bool) {
+        let mut flags = u32::from_le_bytes(self.0[8..12].try_into().unwrap());
+        flags &= !((1 << 21) | (1 << 23));
+        flags |= (u32::from(ipv4) << 21) | (1 << 22);
+        self.0[8..12].copy_from_slice(&flags.to_le_bytes());
+    }
+
+    #[cfg(test)]
     fn flags(&self) -> u32 {
         u32::from_le_bytes([self.0[8], self.0[9], self.0[10], self.0[11]])
     }
 
     /// Paket yönü dışarı giden mi? (bit 17 = Outbound)
+    #[cfg(test)]
     pub fn outbound(&self) -> bool {
         (self.flags() >> 17) & 1 == 1
     }
 
     /// Paket IPv6 mı? (bit 20 = IPv6)
+    #[cfg(test)]
     pub fn is_ipv6(&self) -> bool {
         (self.flags() >> 20) & 1 == 1
     }
@@ -39,7 +50,7 @@ pub struct WinDivert {
     close: unsafe extern "system" fn(*mut c_void) -> c_int,
     recv: unsafe extern "system" fn(*mut c_void, *mut c_void, u32, *mut u32, *mut Address) -> c_int,
     send: unsafe extern "system" fn(*mut c_void, *const c_void, u32, *mut u32, *const Address) -> c_int,
-    set_param: Option<unsafe extern "system" fn(*mut c_void, c_int, u64) -> c_int>,
+    shutdown: unsafe extern "system" fn(*mut c_void, c_int) -> c_int,
     lib: *mut c_void,
 }
 
@@ -77,8 +88,8 @@ impl WinDivert {
                 *const Address,
             ) -> c_int =
                 resolve(lib, b"WinDivertSend\0").ok_or_else(|| missing("WinDivertSend"))?;
-            let set_param: Option<unsafe extern "system" fn(*mut c_void, c_int, u64) -> c_int> =
-                resolve(lib, b"WinDivertSetParam\0");
+            let shutdown = resolve(lib, b"WinDivertShutdown\0")
+                .ok_or_else(|| missing("WinDivertShutdown"))?;
 
             let cfilter = CString::new(filter).map_err(|_| {
                 io::Error::new(io::ErrorKind::InvalidInput, "filtre içinde NUL karakteri var")
@@ -89,16 +100,14 @@ impl WinDivert {
                 return Err(last_error("WinDivertOpen"));
             }
 
-            let wd =
-                WinDivert { handle, close: close_fn, recv: recv_fn, send: send_fn, set_param, lib };
-
-            // Alım zaman aşımı: kapanışta sonsuza kadar bloklanmayı önler
-            // (WINDIVERT_PARAM_QUEUE_TIME = 0)
-            if let Some(sp) = wd.set_param {
-                sp(wd.handle, 0, 2000);
-            }
-            Ok(wd)
+            Ok(WinDivert { handle, close: close_fn, recv: recv_fn, send: send_fn, shutdown, lib })
         }
+    }
+
+    pub fn receive_shutdown(&self) -> impl Fn() + Send + 'static {
+        let handle = self.handle as usize;
+        let shutdown = self.shutdown;
+        move || unsafe { shutdown(handle as *mut c_void, 1); }
     }
 
     pub fn recv(&self, buf: &mut [u8], addr: &mut Address) -> io::Result<usize> {
@@ -113,7 +122,7 @@ impl WinDivert {
             )
         };
         if ok == 0 {
-            return Err(last_error("WinDivertRecv"));
+            return Err(io::Error::last_os_error());
         }
         Ok(len as usize)
     }
@@ -174,7 +183,7 @@ fn wide(s: &str) -> Vec<u16> {
     OsStr::new(s).encode_wide().chain(std::iter::once(0)).collect()
 }
 
-/// Önce uygulama klasöründeki DLL, sonra sistem arama yolu
+/// Use the DLL beside the executable when an explicit directory is supplied.
 unsafe fn load_dll(dir: Option<&Path>) -> Option<*mut c_void> {
     if let Some(d) = dir {
         let p = d.join("WinDivert.dll");
@@ -185,6 +194,7 @@ unsafe fn load_dll(dir: Option<&Path>) -> Option<*mut c_void> {
                 return Some(h);
             }
         }
+        return None;
     }
     let w = wide("WinDivert.dll");
     let h = LoadLibraryW(w.as_ptr());

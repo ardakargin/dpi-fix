@@ -1,6 +1,6 @@
 # Üçüncü taraf bileşenler
 
-Bu proje kendi kodunun yanında **değiştirilmemiş** üçüncü taraf ikilileri dağıtır.
+Yeni Windows kurulum paketi WinDivert DLL ve sürücüsünü dağıtır. Aşağıdaki GoodbyeDPI kayıtları depodaki eski ikililer içindir.
 Tam lisans metinleri `LICENSES/` klasöründedir.
 
 | Bileşen | Dosya | Lisans | Kaynak |

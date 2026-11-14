@@ -60,6 +60,14 @@ impl<'a> Packet<'a> {
         self.ip_hdr_len + transport_hdr_len(self.data, self.ip_hdr_len, self.proto)
     }
 
+    pub fn has_wire_length(&self) -> bool {
+        if self.v6 {
+            usize::from(u16::from_be_bytes([self.data[4], self.data[5]])) + IPV6_HDR == self.data.len()
+        } else {
+            usize::from(u16::from_be_bytes([self.data[2], self.data[3]])) == self.data.len()
+        }
+    }
+
     pub fn payload(&self) -> &[u8] {
         &self.data[self.payload_offset()..]
     }
@@ -72,7 +80,7 @@ impl<'a> Packet<'a> {
     /// Toplam IP paket uzunluğunu günceller (bölme sonrası gerekir)
     pub fn set_total_len(&mut self, len: usize) {
         if self.v6 {
-            let v = (len as u16).to_be_bytes();
+            let v = ((len - IPV6_HDR) as u16).to_be_bytes();
             self.data[4] = v[0];
             self.data[5] = v[1];
         } else {
@@ -178,7 +186,10 @@ fn ports(data: &[u8], ip_hdr_len: usize, proto: u8) -> Option<(u16, u16)> {
     if proto != IPPROTO_TCP && proto != IPPROTO_UDP {
         return None;
     }
-    if data.len() < ip_hdr_len + 4 {
+    if data.len() < ip_hdr_len + if proto == IPPROTO_TCP { TCP_HDR_MIN } else { UDP_HDR } {
+        return None;
+    }
+    if ip_hdr_len + transport_hdr_len(data, ip_hdr_len, proto) > data.len() {
         return None;
     }
     let sp = u16::from_be_bytes([data[ip_hdr_len], data[ip_hdr_len + 1]]);
@@ -386,5 +397,18 @@ mod tests {
         assert!(p.v6);
         assert_eq!(p.dst_port, 80);
         assert_eq!(p.payload().len(), 3);
+    }
+
+    #[test]
+    fn ipv6_length_field_excludes_the_base_header() {
+        let mut buf = [0; IPV6_HDR + TCP_HDR_MIN + 3];
+        buf[0] = 0x60;
+        buf[6] = IPPROTO_TCP;
+        buf[IPV6_HDR + 12] = 0x50;
+        let length = buf.len();
+        let mut packet = Packet::parse(&mut buf).unwrap();
+        packet.set_total_len(length);
+        assert!(packet.has_wire_length());
+        assert_eq!(&packet.data[4..6], &[0, 23]);
     }
 }

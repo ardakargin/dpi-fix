@@ -21,11 +21,11 @@ static class Core
 {
     public const string SvcName = "DpiFix";
     public const string SvcDisplay = "DPI Fix";
-    public const string SvcDesc = "Türkiye için DPI/DNS zorlamasını kaldırır (GoodbyeDPI).";
+    public const string SvcDesc = "DPI Fix native engine";
     public const string LegacySvc = "GoodbyeDPI";
-    public const string AppVersion = "2.2.1";
-    public const string EngineVersion = "0.2.3rc3";
-    public const string UpstreamApi = "https://api.github.com/repos/ValdikSS/GoodbyeDPI/releases/latest";
+    public const string AppVersion = "2.3.0";
+    public const string EngineVersion = EngineInfo.Version;
+    public const string ReleasesApi = "https://api.github.com/repos/ardakargin/dpi-fix/releases/latest";
 
     public static string AppDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
     public static string DataDir = Path.Combine(
@@ -33,33 +33,16 @@ static class Core
     public static string Arch = Environment.Is64BitOperatingSystem ? "x86_64" : "x86";
 
     public static string PayloadDir { get { return Path.Combine(DataDir, "payload", Arch); } }
-    public static string GoodbyeDpiPath { get { return Path.Combine(PayloadDir, "goodbyedpi.exe"); } }
-    public static string RustEnginePath { get { return Path.Combine(PayloadDir, "dpifix-engine.exe"); } }
-    /// Rust motoru yalnızca 64-bit sistemde ve dosya varsa kullanılabilir
-    public static bool RustEngineUsable
-    {
-        get { return Environment.Is64BitOperatingSystem && File.Exists(RustEnginePath); }
-    }
-    public static bool RustEngineCompiled
-    {
-        get { return EngineInfoPresent.Value && Environment.Is64BitOperatingSystem; }
-    }
-    /// Servise yazılacak yürütülebilir dosya
-    public static string ExePath
-    {
-        get { return Engine == "rust" && RustEngineUsable ? RustEnginePath : GoodbyeDpiPath; }
-    }
+    public static string ExePath { get { return Path.Combine(PayloadDir, "dpifix-engine.exe"); } }
     public static string BlacklistPath { get { return Path.Combine(DataDir, "blacklist.txt"); } }
     public static string LogPath { get { return Path.Combine(DataDir, "log.txt"); } }
     public static string SettingsPath { get { return Path.Combine(DataDir, "settings.ini"); } }
     public static string DnsBackupPath { get { return Path.Combine(DataDir, "dns-backup.json"); } }
 
-    public static bool DohEnabled = true;
-    public static bool AutoReprobe = true;
+    public static bool DohEnabled = false;
+    public static bool AutoReprobe = false;
     public static bool VerifyPayload = true;
-    public static string Lang = "tr";
-    /// "goodbyedpi" (varsayılan) veya "rust"
-    public static string Engine = "goodbyedpi";
+    public static string Lang = Loc.SystemLanguage();
 
     static readonly object Gate = new object();
     public static Action<string> Sink;   // GUI/konsol kancası
@@ -98,12 +81,7 @@ static class Core
                 else if (k == "lang")
                 {
                     string raw = ls[i].Substring(p + 1).Trim().ToLowerInvariant();
-                    if (raw == "en" || raw == "tr") Lang = raw;
-                }
-                else if (k == "engine")
-                {
-                    string raw = ls[i].Substring(p + 1).Trim().ToLowerInvariant();
-                    if (raw == "rust" || raw == "goodbyedpi") Engine = raw;
+                    if (Array.IndexOf(Loc.Codes, raw) >= 0) Lang = raw;
                 }
             }
         }
@@ -119,8 +97,7 @@ static class Core
                 "doh=" + (DohEnabled ? "1" : "0") + "\r\n" +
                 "autoreprobe=" + (AutoReprobe ? "1" : "0") + "\r\n" +
                 "verify=" + (VerifyPayload ? "1" : "0") + "\r\n" +
-                "lang=" + Lang + "\r\n" +
-                "engine=" + Engine + "\r\n", Encoding.UTF8);
+                "lang=" + Lang + "\r\n", Encoding.UTF8);
         }
         catch { }
     }
@@ -167,13 +144,9 @@ static class Core
     }
 
     static Res[] AllResources = new Res[] {
-        new Res("pl_x86_goodbyedpi_exe","x86/goodbyedpi.exe","66e202c9fce9e769e2bc791b7fd6f56f21eab59f607f4ed0724e0c68c430dd1f"),
-        new Res("pl_x86_WinDivert_dll","x86/WinDivert.dll","625ffdd95bfabff32d0e8a95beabcd303c01c8bba73b90402d4e84d6e15dd8e5"),
-        new Res("pl_x86_WinDivert32_sys","x86/WinDivert32.sys","29ca5ceb59c9c6993a349e82b1fd46078e6f8a302764153ab84fa22e382fcdca"),
-        new Res("pl_x86_WinDivert64_sys","x86/WinDivert64.sys","e69b5ba3f0cd6cfb2983e442636e7f0b342b61b15264b0328317d4559c82cf50"),
-        new Res("pl_x86_64_goodbyedpi_exe","x86_64/goodbyedpi.exe","8d412b094bb9c137ff25ba9a794d1122ecc84bb776debff6c249723a13cc31cd"),
         new Res("pl_x86_64_WinDivert_dll","x86_64/WinDivert.dll","6110bfa44667405179c3e15e12af1b62037e447ed59b054b19042032995e6c7e"),
-        new Res("pl_x86_64_WinDivert64_sys","x86_64/WinDivert64.sys","e69b5ba3f0cd6cfb2983e442636e7f0b342b61b15264b0328317d4559c82cf50")
+        new Res("pl_x86_64_WinDivert64_sys","x86_64/WinDivert64.sys","e69b5ba3f0cd6cfb2983e442636e7f0b342b61b15264b0328317d4559c82cf50"),
+        new Res("pl_engine","x86_64/dpifix-engine.exe",EngineInfo.Sha256),
     };
 
     public static string Sha256File(string path)
@@ -231,45 +204,6 @@ static class Core
             }
         }
 
-        // Rust motoru (64-bit sistemlerde) — ayrı kaynak, ayrı doğrulama
-        if (EngineInfoPresent.Value && Environment.Is64BitOperatingSystem)
-        {
-            try
-            {
-                using (Stream s = asm.GetManifestResourceStream("pl_engine"))
-                {
-                    if (s == null) { Log("   gömülü Rust motoru yok"); }
-                    else
-                    {
-                        byte[] buf = new byte[s.Length];
-                        int off = 0;
-                        while (off < buf.Length)
-                        {
-                            int n2 = s.Read(buf, off, buf.Length - off);
-                            if (n2 <= 0) break;
-                            off += n2;
-                        }
-                        File.WriteAllBytes(RustEnginePath, buf);
-                        Log("Rust motoru çıkarıldı: dpifix-engine.exe (" + (buf.Length / 1024) + " KB)");
-                        if (VerifyPayload && EngineInfo.Sha256.Length > 0)
-                        {
-                            string h = Sha256File(RustEnginePath);
-                            if (!string.Equals(h, EngineInfo.Sha256, StringComparison.OrdinalIgnoreCase))
-                            {
-                                Log("   BÜTÜNLÜK UYARISI: dpifix-engine.exe");
-                                warn = "Bütünlük doğrulanamadı: dpifix-engine.exe";
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Log("   Rust motoru yazılamadı: " + ex.Message);
-                warn = "Rust motoru yazılamadı";
-            }
-        }
-
         return warn;
     }
 
@@ -304,11 +238,15 @@ static class Core
         psi.RedirectStandardOutput = true;
         psi.RedirectStandardError = true;
         psi.CreateNoWindow = true;
-        Process p = Process.Start(psi);
-        string o = p.StandardOutput.ReadToEnd() + p.StandardError.ReadToEnd();
-        p.WaitForExit();
-        output = o.Trim();
-        return p.ExitCode;
+        using (Process p = Process.Start(psi))
+        {
+            System.Threading.Tasks.Task<string> errors = System.Threading.Tasks.Task.Factory.StartNew(
+                delegate { return p.StandardError.ReadToEnd(); });
+            string stdout = p.StandardOutput.ReadToEnd();
+            p.WaitForExit();
+            output = (stdout + errors.Result).Trim();
+            return p.ExitCode;
+        }
     }
 
     public static int Sc(string args, out string output) { return Run("sc.exe", args, out output); }
@@ -349,31 +287,28 @@ static class Core
         return Loc.T("st." + State());
     }
 
-    public static void KillStrays()
-    {
-        try
-        {
-            Process[] ps = Process.GetProcessesByName("goodbyedpi");
-            for (int i = 0; i < ps.Length; i++)
-            {
-                try { ps[i].Kill(); } catch { }
-                try { ps[i].WaitForExit(1500); } catch { }
-            }
-        }
-        catch { }
-    }
-
     public static void StopService()
     {
         string o;
         Sc("stop " + SvcName, out o);
-        Thread.Sleep(900);
-        KillStrays();
+        using (ServiceController service = new ServiceController(SvcName))
+        {
+            if (State() != "absent")
+                service.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(12));
+        }
+    }
+
+    public static void StopAndRestore()
+    {
+        lock (Gate)
+        {
+            StopService();
+            if (!RestoreDns()) throw new InvalidOperationException("DNS restoration failed. Backup retained.");
+        }
     }
 
     // ---------------- DNS katmanı ----------------
 
-    static string dnsArgs = "";
     public static bool DohApplied = false;
 
     public static bool ApplyDoh()
@@ -382,10 +317,16 @@ static class Core
         string script =
             "$ErrorActionPreference='Stop'\r\n" +
             "$doh='https://cloudflare-dns.com/dns-query'\r\n" +
-            "foreach($ip in @('1.1.1.1','1.0.0.1')){try{Add-DnsClientDohServerAddress -ServerAddress $ip -DohTemplate $doh -AllowFallbackToUdp $true -AutoUpgrade $true -ErrorAction SilentlyContinue}catch{}}\r\n" +
+            "foreach($ip in @('1.1.1.1','1.0.0.1')){if(-not (Get-DnsClientDohServerAddress -ServerAddress $ip -ErrorAction SilentlyContinue | Where-Object {$_.DohTemplate -eq $doh -and $_.AutoUpgrade})){throw 'Cloudflare DoH is not configured in Windows'}}\r\n" +
             "$idx=(Get-NetRoute -DestinationPrefix '0.0.0.0/0' | Sort-Object RouteMetric | Select-Object -First 1).InterfaceIndex\r\n" +
             "if(-not $idx){throw 'aktif ag arayuzu bulunamadi'}\r\n" +
-            "Get-DnsClientServerAddress -AddressFamily IPv4 | Select-Object InterfaceIndex,InterfaceAlias,ServerAddresses | ConvertTo-Json -Compress | Set-Content -Encoding UTF8 '" + DnsBackupPath + "'\r\n" +
+            "if(Test-Path '" + DnsBackupPath + "'){throw 'DNS backup already exists'}\r\n" +
+            "$adapter=Get-NetAdapter -InterfaceIndex $idx\r\n" +
+            "$guid='{' + ([guid]$adapter.InterfaceGuid).ToString() + '}'\r\n" +
+            "$key='HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters\\Interfaces\\' + $guid\r\n" +
+            "$static=(Get-ItemProperty -LiteralPath $key).NameServer\r\n" +
+            "$dns=Get-DnsClientServerAddress -InterfaceIndex $idx -AddressFamily IPv4\r\n" +
+            "@{InterfaceIndex=$idx;InterfaceGuid=$guid;Automatic=[string]::IsNullOrWhiteSpace($static);ServerAddresses=@($dns.ServerAddresses)} | ConvertTo-Json -Compress | Set-Content -Encoding UTF8 '" + DnsBackupPath + "'\r\n" +
             "Set-DnsClientServerAddress -InterfaceIndex $idx -ServerAddresses 1.1.1.1,1.0.0.1\r\n" +
             "Clear-DnsClientCache\r\n" +
             "Write-Output 'OK'\r\n";
@@ -395,7 +336,7 @@ static class Core
             string o = Ps(script, out code);
             if (code != 0 || o.IndexOf("OK") < 0)
             {
-                Log("DNS-over-HTTPS uygulanamadı (kod " + code + "). Yönlendirme moduna geçilecek.");
+                Log("DNS-over-HTTPS uygulanamadı (kod " + code + ").");
                 if (o.Length > 0) Log("   " + FirstLines(o, 3));
                 return false;
             }
@@ -406,15 +347,17 @@ static class Core
         catch (Exception ex) { Log("DNS-over-HTTPS hatası: " + ex.Message); return false; }
     }
 
-    public static void RestoreDns()
+    public static bool RestoreDns()
     {
-        if (!File.Exists(DnsBackupPath)) return;
+        if (!File.Exists(DnsBackupPath)) return true;
         string script =
-            "$ErrorActionPreference='SilentlyContinue'\r\n" +
+            "$ErrorActionPreference='Stop'\r\n" +
             "$b=Get-Content -Raw '" + DnsBackupPath + "' | ConvertFrom-Json\r\n" +
             "foreach($e in @($b)){\r\n" +
-            "  if($e.ServerAddresses -and $e.ServerAddresses.Count -gt 0){Set-DnsClientServerAddress -InterfaceIndex $e.InterfaceIndex -ServerAddresses $e.ServerAddresses}\r\n" +
-            "  else{Set-DnsClientServerAddress -InterfaceIndex $e.InterfaceIndex -ResetServerAddresses}\r\n" +
+            "  $idx=$e.InterfaceIndex\r\n" +
+            "  if($e.InterfaceGuid){$adapter=Get-NetAdapter | Where-Object {([guid]$_.InterfaceGuid) -eq ([guid]$e.InterfaceGuid)}; if(-not $adapter){throw 'Original DNS adapter unavailable'}; $idx=$adapter.ifIndex}\r\n" +
+            "  if(!$e.Automatic -and $e.ServerAddresses -and $e.ServerAddresses.Count -gt 0){Set-DnsClientServerAddress -InterfaceIndex $idx -ServerAddresses $e.ServerAddresses}\r\n" +
+            "  else{Set-DnsClientServerAddress -InterfaceIndex $idx -ResetServerAddresses}\r\n" +
             "}\r\n" +
             "Clear-DnsClientCache\r\n" +
             "Remove-Item '" + DnsBackupPath + "' -Force\r\n" +
@@ -423,11 +366,16 @@ static class Core
         {
             int code;
             string o = Ps(script, out code);
-            if (code == 0) Log("Önceki DNS ayarı geri yüklendi.");
+            if (code == 0)
+            {
+                DohApplied = false;
+                Log("Önceki DNS ayarı geri yüklendi.");
+                return true;
+            }
             else Log("DNS ayarı geri yüklenemedi: " + FirstLines(o, 2));
         }
         catch (Exception ex) { Log("DNS geri yükleme hatası: " + ex.Message); }
-        DohApplied = false;
+        return false;
     }
 
     static string FirstLines(string s, int n)
@@ -449,15 +397,16 @@ static class Core
     public static Profile[] Profiles()
     {
         return new Profile[] {
-            new Profile("Dengeli (site listesi ile)", "-9 --blacklist \"" + BlacklistPath + "\""),
-            new Profile("Genel (-9, tüm trafik)", "-9"),
-            new Profile("Uyumlu (-6)", "-6")
+            new Profile("HTTPS", "--domains \"" + BlacklistPath + "\""),
+            new Profile("HTTPS + HTTP", "--domains \"" + BlacklistPath + "\" --http")
         };
     }
 
     class ProbeTarget
     {
-        public string Host; public bool Must; public bool Ok;
+        public string Host; public bool Must;
+        public int Status;
+        public bool Ok { get { return Status >= 200 && Status < 400; } }
         public ProbeTarget(string host, bool must) { Host = host; Must = must; }
     }
 
@@ -468,13 +417,16 @@ static class Core
         List<ProbeTarget> list = new List<ProbeTarget>();
         list.Add(new ProbeTarget("www.google.com", true));
         list.Add(new ProbeTarget("www.youtube.com", true));
+        list.Add(new ProbeTarget("example.com", true));
 
         string[] bl = ReadBlacklist().Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
         int added = 0;
         for (int i = 0; i < bl.Length && added < 6; i++)
         {
-            string h = bl[i].Trim();
-            if (h.Length < 4 || h.StartsWith("#")) continue;
+            string h = bl[i].Split('#')[0].Trim();
+            if (h.StartsWith("*.", StringComparison.Ordinal)) h = h.Substring(2);
+            h = h.TrimEnd('.');
+            if (Uri.CheckHostName(h) != UriHostNameType.Dns || h.IndexOf('.') < 0) continue;
             bool dup = false;
             for (int j = 0; j < list.Count; j++)
                 if (string.Equals(list[j].Host, h, StringComparison.OrdinalIgnoreCase)) dup = true;
@@ -490,19 +442,24 @@ static class Core
         return list.ToArray();
     }
 
-    static ProbeTarget[] ProbeAll()
+    static ProbeTarget[] ProbeAll(ProbeTarget[] baseline = null)
     {
-        FlushDns();
-        ProbeTarget[] t = Targets();
+        ProbeTarget[] t = baseline == null ? Targets() :
+            Array.ConvertAll(baseline, delegate(ProbeTarget target) { return new ProbeTarget(target.Host, target.Must); });
         Thread[] ts = new Thread[t.Length];
         for (int i = 0; i < t.Length; i++)
         {
             ProbeTarget cur = t[i];
-            ts[i] = new Thread(delegate () { cur.Ok = TlsOk(cur.Host, 5000); });
+            ts[i] = new Thread(delegate () { cur.Status = HttpsStatus(cur.Host, 4000); });
             ts[i].IsBackground = true;
             ts[i].Start();
         }
-        for (int i = 0; i < ts.Length; i++) ts[i].Join(7000);
+        Stopwatch deadline = Stopwatch.StartNew();
+        for (int i = 0; i < ts.Length; i++)
+        {
+            int remaining = Math.Max(0, 9000 - (int)deadline.ElapsedMilliseconds);
+            if (!ts[i].Join(remaining)) t[i] = new ProbeTarget(t[i].Host, t[i].Must);
+        }
         return t;
     }
 
@@ -517,15 +474,19 @@ static class Core
         return must && any;
     }
 
-    public static bool TlsOk(string host, int ms)
+    static int HttpsStatus(string host, int ms)
     {
         TcpClient tcp = null;
         try
         {
             tcp = new TcpClient();
+            host = new System.Globalization.IdnMapping().GetAscii(host);
             IAsyncResult ar = tcp.BeginConnect(host, 443, null, null);
-            if (!ar.AsyncWaitHandle.WaitOne(ms, false)) return false;
-            tcp.EndConnect(ar);
+            using (WaitHandle wait = ar.AsyncWaitHandle)
+            {
+                if (!wait.WaitOne(ms, false)) return 0;
+                tcp.EndConnect(ar);
+            }
             tcp.ReceiveTimeout = ms;
             tcp.SendTimeout = ms;
             using (SslStream ssl = new SslStream(tcp.GetStream(), false, CertOk))
@@ -535,11 +496,33 @@ static class Core
                 SslProtocols modern = SslProtocols.Tls12 | (SslProtocols)12288; // 12288 = Tls13
                 try { ssl.AuthenticateAsClient(host, null, modern, false); }
                 catch (ArgumentException) { ssl.AuthenticateAsClient(host, null, SslProtocols.Tls12, false); }
-                return ssl.IsAuthenticated;
+                byte[] request = Encoding.ASCII.GetBytes("GET / HTTP/1.1\r\nHost: " + host +
+                    "\r\nUser-Agent: DPI-Fix-Connectivity/1.0\r\nConnection: close\r\n\r\n");
+                ssl.Write(request, 0, request.Length);
+                byte[] prefix = new byte[12];
+                int used = 0;
+                while (used < prefix.Length)
+                {
+                    int read = ssl.Read(prefix, used, prefix.Length - used);
+                    if (read == 0) return 0;
+                    used += read;
+                }
+                return ReadHttpStatus(prefix);
             }
         }
-        catch { return false; }
+        catch { return 0; }
         finally { if (tcp != null) { try { tcp.Close(); } catch { } } }
+    }
+
+    static int ReadHttpStatus(byte[] prefix)
+    {
+        if (prefix.Length != 12 || prefix[8] != ' ' ||
+            (prefix[7] != '0' && prefix[7] != '1') ||
+            Encoding.ASCII.GetString(prefix, 0, 7) != "HTTP/1.")
+            return 0;
+        for (int i = 9; i < 12; i++)
+            if (prefix[i] < '0' || prefix[i] > '9') return 0;
+        return (prefix[9] - '0') * 100 + (prefix[10] - '0') * 10 + prefix[11] - '0';
     }
 
     // DNS önbelleği temizlenmezse test, servis kurulmadan önceki zehirli cevabı okur.
@@ -557,12 +540,40 @@ static class Core
     static void LogProbe(ProbeTarget[] t)
     {
         for (int i = 0; i < t.Length; i++)
-            Log("   " + t[i].Host + " = " + (t[i].Ok ? Loc.T("log.reach") : Loc.T("log.blocked")) + (t[i].Must ? Loc.T("log.req") : ""));
+            Log("   " + t[i].Host + " = " + FormatProbe(t[i]));
     }
 
-    static string SelectProfile()
+    static string FormatProbe(ProbeTarget target)
+    {
+        string result = target.Status == 0 ? Loc.T("log.blocked") : "HTTP " + target.Status;
+        return result + (target.Must ? Loc.T("log.req") : "");
+    }
+
+    static bool PreservesConnectivity(ProbeTarget[] before, ProbeTarget[] after)
+    {
+        bool baselineAvailable = false;
+        for (int i = 0; i < before.Length; i++)
+        {
+            if (!before[i].Ok) continue;
+            if (before[i].Must) baselineAvailable = true;
+            if (!after[i].Ok) return false;
+        }
+        return baselineAvailable;
+    }
+
+    static int AccessGain(ProbeTarget[] before, ProbeTarget[] after)
+    {
+        int gain = 0;
+        for (int i = 0; i < before.Length; i++)
+            if (!before[i].Must && !before[i].Ok && after[i].Ok) gain++;
+        return gain;
+    }
+
+    static string SelectProfile(ProbeTarget[] baseline)
     {
         Profile[] ps = Profiles();
+        string best = null;
+        int bestGain = 0;
         for (int i = 0; i < ps.Length; i++)
         {
             Profile pr = ps[i];
@@ -570,21 +581,33 @@ static class Core
             Process p = null;
             try
             {
-                ProcessStartInfo psi = new ProcessStartInfo(ExePath, pr.Args + " " + dnsArgs);
+                ProcessStartInfo psi = new ProcessStartInfo(ExePath, pr.Args);
                 psi.WorkingDirectory = Path.GetDirectoryName(ExePath);
                 psi.UseShellExecute = false;
                 psi.CreateNoWindow = true;
                 p = Process.Start(psi);
                 Thread.Sleep(2500);
-                ProbeTarget[] t = ProbeAll();
+                ProbeTarget[] t = ProbeAll(baseline);
                 LogProbe(t);
-                if (Pass(t)) return pr.Args;
-                Log("   " + Loc.T("log.next"));
+                if (p.HasExited || !PreservesConnectivity(baseline, t))
+                {
+                    Log("   " + Loc.T("log.next"));
+                    continue;
+                }
+                int gain = AccessGain(baseline, t);
+                if (gain > bestGain) { best = pr.Args; bestGain = gain; }
             }
             catch (Exception ex) { Log("   hata: " + ex.Message); }
-            finally { if (p != null && !p.HasExited) { try { p.Kill(); } catch { } } }
+            finally
+            {
+                if (p != null)
+                {
+                    try { if (!p.HasExited) { p.Kill(); p.WaitForExit(2000); } }
+                    finally { p.Dispose(); }
+                }
+            }
         }
-        return null;
+        return best;
     }
 
     // ---------------- kurulum ----------------
@@ -595,95 +618,103 @@ static class Core
         {
             string o;
             bool ok = false;
+            bool stopped = false;
+            bool created = false;
             try
             {
-                Log("---- KURULUM BAŞLADI (v" + AppVersion + ") ----");
+                if (Environment.GetEnvironmentVariable("PROCESSOR_ARCHITECTURE") != "AMD64" && Environment.GetEnvironmentVariable("PROCESSOR_ARCHITEW6432") != "AMD64")
+                    throw new PlatformNotSupportedException("DPI Fix requires x64 Windows.");
+                Log(Loc.T("log.step2"));
+                StopService();
+                stopped = true;
+                if (!RestoreDns()) return false;
                 EnsureBlacklist();
-                SaveSettings();
+                ProbeTarget[] baseline = ProbeAll();
 
                 Log(Loc.T("log.step1"));
                 string warn = ExtractPayload();
-                if (Engine == "rust" && !RustEngineUsable)
+                if (warn != null) { Log(warn); return false; }
+                SaveSettings();
+
+                string args = SelectProfile(baseline);
+                if (args == null && DohEnabled)
                 {
-                    Log(Loc.T("log.enginefb"));
-                    Engine = "goodbyedpi";
-                }
-                Log(Loc.T("log.engine", Engine == "rust" ? "Rust (dpifix-engine)" : "GoodbyeDPI"));
-                if (warn != null) Log("   UYARI: " + warn);
-
-                Log(Loc.T("log.step2"));
-                StopService();
-                Sc("stop " + LegacySvc, out o);
-                Sc("delete " + LegacySvc, out o);
-
-                Log(Loc.T("log.step3"));
-                dnsArgs = "";
-                if (!ApplyDoh())
-                {
-                    dnsArgs = "--dns-addr 77.88.8.8 --dns-port 1253 --dnsv6-addr 2a02:6b8::feed:0ff --dnsv6-port 1253";
-                    Log(Loc.T("log.dir", "Yandex :1253"));
-                }
-
-                Log(Loc.T("log.step4"));
-                string args = SelectProfile();
-
-                if (args == null && DohApplied)
-                {
-                    Log("Hiçbir profil geçmedi. DNS-over-HTTPS geri alınıp yönlendirme ile tekrar denenecek.");
-                    RestoreDns();
-                    dnsArgs = "--dns-addr 77.88.8.8 --dns-port 1253 --dnsv6-addr 2a02:6b8::feed:0ff --dnsv6-port 1253";
-                    args = SelectProfile();
+                    if (ApplyDoh()) args = SelectProfile(baseline);
+                    else if (!RestoreDns()) return false;
                 }
                 if (args == null)
                 {
-                    args = Profiles()[0].Args;
                     Log(Loc.T("log.none"));
+                    return false;
                 }
-                else Log(Loc.T("log.chosen", args));
 
-                Log(Loc.T("log.step5"));
-                Sc("delete " + SvcName, out o);
-                Thread.Sleep(1200);
-                string full = args + (dnsArgs.Length > 0 ? " " + dnsArgs : "");
-                string line = "create " + SvcName + " binPath= \"\\\"" + ExePath + "\\\" " + full + "\"" +
-                              " start= auto DisplayName= \"" + SvcDisplay + "\"";
-                int rc = Sc(line, out o);
-                if (rc != 0) { Thread.Sleep(1500); rc = Sc(line, out o); }
-                if (rc != 0) { Log("   sc create başarısız: " + o); return false; }
+                if (State() != "absent" && Sc("delete " + SvcName, out o) != 0)
+                    throw new InvalidOperationException(o);
+                string full = "--service " + args;
+                string binPath = "\"" + ExePath + "\" " + full;
+                string line = "create " + SvcName + " binPath= " + QuoteArgument(binPath) +
+                              " start= demand DisplayName= \"DPI Fix\"";
+                if (Sc(line, out o) != 0) throw new InvalidOperationException(o);
+                created = true;
                 Sc("description " + SvcName + " \"" + SvcDesc + "\"", out o);
-                Sc("failure " + SvcName + " reset= 86400 actions= restart/5000/restart/15000/restart/60000", out o);
-
-                Log(Loc.T("log.step6"));
-                Sc("start " + SvcName, out o);
-                Thread.Sleep(1800);
-                ok = State() == "running";
-                Log("Durum: " + StateText());
-                if (!ok) Log(Loc.T("log.svcfail", FirstLines(o, 3)));
+                if (Sc("start " + SvcName, out o) != 0) throw new InvalidOperationException(o);
+                using (ServiceController service = new ServiceController(SvcName))
+                    service.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(12));
+                ProbeTarget[] running = ProbeAll(baseline);
+                LogProbe(running);
+                if (PreservesConnectivity(baseline, running) && AccessGain(baseline, running) > 0 && State() == "running")
+                {
+                    if (Sc("config " + SvcName + " start= auto", out o) != 0)
+                        throw new InvalidOperationException(o);
+                    ok = true;
+                    if (Sc("failure " + SvcName + " reset= 86400 actions= restart/5000/restart/15000", out o) != 0)
+                        Log(o);
+                    try { File.Delete(Path.Combine(PayloadDir, "dpifix-service.exe")); }
+                    catch (IOException ex) { Log(ex.Message); }
+                    catch (UnauthorizedAccessException ex) { Log(ex.Message); }
+                }
             }
-            catch (Exception ex) { Log("KURULUM HATASI: " + ex.Message); ok = false; }
-            Log(ok ? Loc.T("log.done")
-                   : Loc.T("log.failed"));
+            catch (Exception ex) { Log(ex.Message); }
+            finally
+            {
+                if (!ok && stopped)
+                {
+                    try
+                    {
+                        if (created)
+                        {
+                            StopService();
+                            Sc("delete " + SvcName, out o);
+                        }
+                    }
+                    catch (Exception ex) { Log(ex.Message); }
+                    finally { RestoreDns(); }
+                }
+                Log(ok ? Loc.T("log.done") : Loc.T("log.failed"));
+            }
             return ok;
         }
+    }
+
+    static string QuoteArgument(string value)
+    {
+        return "\"" + Regex.Replace(value, "(\\\\*)(\"|$)", delegate(Match match)
+        {
+            string slashes = match.Groups[1].Value;
+            return slashes + slashes + (match.Groups[2].Value == "\"" ? "\\\"" : "");
+        }) + "\"";
     }
 
     public static void Uninstall()
     {
         lock (Gate)
         {
-            string o;
-            Log("---- KALDIRMA ----");
+            string output;
             StopService();
-            Sc("delete " + SvcName, out o);
-            Sc("stop " + LegacySvc, out o); Sc("delete " + LegacySvc, out o);
-            Sc("stop WinDivert", out o); Sc("delete WinDivert", out o);
-            Sc("stop WinDivert14", out o); Sc("delete WinDivert14", out o);
-            KillStrays();
-            RestoreDns();
-            Thread.Sleep(700);
-            try { if (Directory.Exists(DataDir)) Directory.Delete(DataDir, true); Log("Dosyalar silindi: " + DataDir); }
-            catch (Exception ex) { Log("Dosyalar silinemedi (kilitli olabilir): " + ex.Message); }
-            Log("Durum: " + StateText());
+            if (!RestoreDns()) throw new InvalidOperationException("DNS restoration failed. Backup retained.");
+            if (State() != "absent" && Sc("delete " + SvcName, out output) != 0)
+                throw new InvalidOperationException(output);
+            if (Directory.Exists(DataDir)) Directory.Delete(DataDir, true);
         }
     }
 
@@ -705,17 +736,20 @@ static class Core
         Log(Loc.T("log.updcur", EngineVersion, AppVersion));
         try
         {
-            WebClient wc = new WebClient();
-            wc.Headers.Add("User-Agent", "DpiFix");
-            wc.Encoding = Encoding.UTF8;
-            string json = wc.DownloadString(UpstreamApi);
-            Match m = Regex.Match(json, "\"tag_name\"\\s*:\\s*\"([^\"]+)\"");
-            if (!m.Success) { Log("   Sürüm bilgisi okunamadı."); return; }
-            string tag = m.Groups[1].Value.Trim();
-            Log(Loc.T("log.updnew", tag));
-            if (tag.TrimStart('v', 'V') != EngineVersion)
-                Log("   " + Loc.T("log.updhas") + " → https://github.com/ValdikSS/GoodbyeDPI/releases");
-            else Log("   " + Loc.T("log.updnone"));
+            using (WebClient client = new WebClient())
+            {
+                client.Headers.Add("User-Agent", "DpiFix");
+                client.Encoding = Encoding.UTF8;
+                string json = client.DownloadString(ReleasesApi);
+                Match match = Regex.Match(json, "\"tag_name\"\\s*:\\s*\"([^\"]+)\"");
+                Version published;
+                if (!match.Success || !Version.TryParse(match.Groups[1].Value.TrimStart('v', 'V'), out published))
+                    throw new InvalidDataException("Could not read the published DPI Fix version.");
+                Log("DPI Fix · " + published);
+                if (published > new Version(AppVersion))
+                    Log(Loc.T("log.updhas") + " https://github.com/ardakargin/dpi-fix/releases");
+                else Log(Loc.T("log.updnone"));
+            }
         }
         catch (Exception ex) { Log("   Kontrol başarısız: " + ex.Message); }
     }
@@ -749,7 +783,6 @@ static class Core
             if (Pass(t)) { Log(Loc.T("log.netok")); return; }
             LogProbe(t);
             Log(Loc.T("log.netbad"));
-            Install();
         }
         catch (Exception ex) { Log("Ağ yeniden kontrol hatası: " + ex.Message); }
     }
@@ -772,7 +805,7 @@ static class Core
         sb.AppendLine("doh=" + DohEnabled + " autoreprobe=" + AutoReprobe + " verify=" + VerifyPayload);
         ProbeTarget[] t = ProbeAll();
         for (int i = 0; i < t.Length; i++)
-            sb.AppendLine("net." + t[i].Host + "=" + (t[i].Ok ? "OK" : "ENGELLI") + (t[i].Must ? " (must)" : ""));
+            sb.AppendLine("net." + t[i].Host + "=" + FormatProbe(t[i]));
         sb.AppendLine("pass=" + Pass(t));
         sb.AppendLine("resCount=" + AllResources.Length);
         sb.AppendLine("embeddedVerify=" + VerifyEmbedded());

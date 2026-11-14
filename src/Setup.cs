@@ -14,7 +14,7 @@ static class SetupCore
 {
     public const string AppName = "DPI Fix";
     public const string Pub = "DpiFix";
-    public const string DisplayVer = "2.0";
+    public const string DisplayVer = "2.3.0";
     const string ResApp = "payload_app";
 
     public static string TargetDir
@@ -178,11 +178,16 @@ static class SetupCore
             if (File.Exists(TargetExe))
             {
                 long mark = LogMark();
-                RunExe(TargetExe, "--uninstall");
+                int result = RunExe(TargetExe, "--uninstall");
                 LogTail(mark);
+                if (result != 0) throw new InvalidOperationException("DPI Fix service removal failed.");
             }
         }
-        catch (Exception ex) { Log("Servis kaldırma hatası: " + ex.Message); }
+        catch (Exception ex)
+        {
+            Log("Servis kaldırma hatası: " + ex.Message);
+            throw;
+        }
 
         DeleteShortcut(Path.Combine(StartMenuDir, AppName + ".lnk"));
         DeleteShortcut(Path.Combine(StartMenuDir, AppName + " Kaldir.lnk"));
@@ -354,14 +359,14 @@ class SetupForm : Form
         btnGo.Enabled = false;
         ThreadPool.QueueUserWorkItem(delegate
         {
-            try { SetupCore.Uninstall(); }
+            bool removed = false;
+            try { SetupCore.Uninstall(); removed = true; }
             catch (Exception ex) { Log("HATA: " + ex.Message); }
             BeginInvoke((MethodInvoker)delegate
             {
                 btnGo.Enabled = true;
-                status.Text = "Durum: kurulu değil";
-                status.ForeColor = Color.DimGray;
-                Log("Bu pencereyi kapatabilirsiniz.");
+                status.Text = removed ? "Durum: kurulu değil" : "Kaldırma tamamlanamadı";
+                status.ForeColor = removed ? Color.DimGray : Color.IndianRed;
             });
         });
     }
@@ -377,7 +382,8 @@ static class SetupProgram
         if (cmd == "--uninstall")
         {
             SetupCore.Sink = delegate (string s) { try { Console.WriteLine(s); } catch { } };
-            SetupCore.Uninstall();
+            try { SetupCore.Uninstall(); }
+            catch { Environment.ExitCode = 1; }
             return;
         }
         if (cmd == "--install")

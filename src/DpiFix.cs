@@ -33,7 +33,8 @@ class LogoBox : Control
             {
                 if (s != null)
                 {
-                    using (Image image = Image.FromStream(s)) mark = new Bitmap(image);
+                    using (Image image = Image.FromStream(s))
+                        mark = new Bitmap(image, 72, 72);
                 }
             }
         }
@@ -57,7 +58,7 @@ class MainForm : Form
     Label secStatus, secActions, secSettings, secLog, lblService, lblEngine, lblProfile, lblSites;
     Label title, sub, hint1, hint2;
     FlatButton btnInstall, btnStop, btnRemove, btnTest, btnList, btnUpdate, btnLog, btnLang;
-    FlatCheck chkDoh, chkWatch, chkVerify, chkRust;
+    FlatCheck chkDoh, chkWatch, chkVerify;
     System.Windows.Forms.Timer timer;
     bool busy = false;
 
@@ -71,7 +72,6 @@ class MainForm : Form
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Theme.Bg;
         Font = Theme.Ui(9f, FontStyle.Regular);
-        DoubleBuffered = true;
 
         // ---- başlık ----
         LogoBox logo = new LogoBox();
@@ -79,9 +79,9 @@ class MainForm : Form
         Controls.Add(logo);
 
         title = new Label();
-        title.Font = Theme.Ui(13f, FontStyle.Bold);
+        title.Font = Theme.Ui(17f, FontStyle.Bold);
         title.ForeColor = Theme.Fg;
-        title.Location = new Point(68, 18);
+        title.Location = new Point(68, 14);
         title.AutoSize = true;
         Controls.Add(title);
 
@@ -93,8 +93,9 @@ class MainForm : Form
         Controls.Add(sub);
 
         btnLang = new FlatButton();
-        btnLang.Size = new Size(64, 30);
-        btnLang.Location = new Point(692, 26);
+        btnLang.Size = new Size(112, 32);
+        btnLang.Location = new Point(644, 24);
+        btnLang.AccessibleName = "Language";
         btnLang.Font = Theme.Ui(9f, FontStyle.Bold);
         btnLang.TextColor = Theme.Accent;
         btnLang.BorderColor = Color.FromArgb(0x25, 0x45, 0x48);
@@ -141,29 +142,30 @@ class MainForm : Form
         // ---- işlemler ----
         secActions = SectionLabel(this, 24, 204);
 
-        btnInstall = MkBtn(24, 222, 150, 38, true);
+        btnInstall = MkBtn(24, 222, 232, 40, true);
         btnInstall.Click += ClickInstall;
-        btnStop = MkBtn(182, 222, 104, 38, false);
+        btnStop = MkBtn(266, 222, 236, 40, false);
         btnStop.Click += ClickStop;
-        btnRemove = MkBtn(294, 222, 104, 38, false);
+        btnRemove = MkBtn(512, 222, 244, 40, false);
         btnRemove.Click += ClickRemove;
 
-        btnTest = MkBtn(24, 268, 140, 34, false);
+        btnTest = MkBtn(24, 270, 176, 34, false);
         btnTest.Click += ClickTest;
-        btnList = MkBtn(172, 268, 118, 34, false);
+        btnList = MkBtn(210, 270, 172, 34, false);
         btnList.Click += ClickList;
-        btnUpdate = MkBtn(298, 268, 110, 34, false);
+        btnUpdate = MkBtn(392, 270, 174, 34, false);
         btnUpdate.Click += ClickUpdate;
-        btnLog = MkBtn(416, 268, 110, 34, false);
+        btnLog = MkBtn(576, 270, 180, 34, false);
         btnLog.Click += ClickOpenLog;
 
         // ---- ayarlar ----
-        secSettings = SectionLabel(this, 24, 316);
-
-        chkDoh = MkCheck(24, 334);
-        chkRust = MkCheck(340, 334);
-        chkWatch = MkCheck(24, 358);
-        chkVerify = MkCheck(24, 382);
+        RoundedPanel settings = new RoundedPanel();
+        settings.SetBounds(24, 320, 732, 84);
+        Controls.Add(settings);
+        secSettings = SectionLabel(settings, 16, 10);
+        chkDoh = MkCheck(16, 31, settings);
+        chkWatch = MkCheck(16, 55, settings);
+        chkVerify = MkCheck(380, 31, settings);
 
         // ---- günlük ----
         secLog = SectionLabel(this, 24, 412);
@@ -201,14 +203,14 @@ class MainForm : Form
         Controls.Add(hint2);
 
         timer = new System.Windows.Forms.Timer();
-        timer.Interval = 1500;
-        timer.Tick += delegate { RefreshStatus(); };
+        timer.Interval = 5000;
+        timer.Tick += delegate { if (!busy && WindowState != FormWindowState.Minimized) RefreshStatus(false); };
         timer.Start();
 
         LoadUiFromSettings();
         ApplyLanguage();
         RefreshStatus();
-        LogText("DPI Fix v" + Core.AppVersion + " · GoodbyeDPI " + Core.EngineVersion);
+        LogText("DPI Fix v" + Core.AppVersion + " · DPI Fix Engine " + Core.EngineVersion);
         LogText(Loc.T("hint.ready"));
     }
 
@@ -264,12 +266,12 @@ class MainForm : Form
         return b;
     }
 
-    FlatCheck MkCheck(int x, int y)
+    FlatCheck MkCheck(int x, int y, Control parent)
     {
         FlatCheck c = new FlatCheck();
         c.Location = new Point(x, y);
         c.CheckedChanged += delegate { SyncSettingsFromUi(); };
-        Controls.Add(c);
+        parent.Controls.Add(c);
         return c;
     }
 
@@ -279,7 +281,6 @@ class MainForm : Form
         Core.DohEnabled = chkDoh.Checked;
         Core.AutoReprobe = chkWatch.Checked;
         Core.VerifyPayload = chkVerify.Checked;
-        Core.Engine = chkRust.Checked ? "rust" : "goodbyedpi";
         Core.SaveSettings();
     }
 
@@ -291,8 +292,6 @@ class MainForm : Form
         chkDoh.Checked = Core.DohEnabled;
         chkWatch.Checked = Core.AutoReprobe;
         chkVerify.Checked = Core.VerifyPayload;
-        chkRust.Checked = Core.Engine == "rust";
-        chkRust.Enabled = Core.RustEngineCompiled;
         loading = false;
     }
 
@@ -317,12 +316,11 @@ class MainForm : Form
         btnList.Text = Loc.T("btn.list");
         btnUpdate.Text = Loc.T("btn.update");
         btnLog.Text = Loc.T("btn.log");
-        btnLang.Text = Loc.Lang == "tr" ? "EN" : "TR";
+        btnLang.Text = Loc.Names[Array.IndexOf(Loc.Codes, Loc.Lang)] + "  ▾";
 
         chkDoh.Text = Loc.T("chk.doh");
         chkWatch.Text = Loc.T("chk.watch");
         chkVerify.Text = Loc.T("chk.verify");
-        chkRust.Text = Loc.T("chk.rust");
 
         hint1.Text = Loc.T("hint.tip");
         hint2.Text = Loc.T("hint.log", Core.LogPath);
@@ -331,14 +329,25 @@ class MainForm : Form
 
     void ClickLang(object s, EventArgs e)
     {
-        Loc.Lang = Loc.Lang == "tr" ? "en" : "tr";
-        Core.Lang = Loc.Lang;
-        Core.SaveSettings();
-        ApplyLanguage();
-        LogText("── " + Loc.T("lang.name") + " ──");
+        ContextMenuStrip menu = new ContextMenuStrip();
+        for (int i = 0; i < Loc.Codes.Length; i++)
+        {
+            string code = Loc.Codes[i];
+            ToolStripMenuItem item = new ToolStripMenuItem(Loc.Names[i]);
+            item.Checked = code == Loc.Lang;
+            item.Click += delegate
+            {
+                Loc.Lang = Core.Lang = code;
+                Core.SaveSettings();
+                ApplyLanguage();
+            };
+            menu.Items.Add(item);
+        }
+        menu.Closed += delegate { menu.Dispose(); };
+        menu.Show(btnLang, new Point(0, btnLang.Height));
     }
 
-    void RefreshStatus()
+    void RefreshStatus(bool details = true)
     {
         string st = Core.State();
         string txt = Loc.T("st." + st);
@@ -351,9 +360,12 @@ class MainForm : Form
 
         valService.Text = txt;
         valService.ForeColor = c;
-        valEngine.Text = "GoodbyeDPI " + Core.EngineVersion;
-        valProfile.Text = Core.CurrentArgsShort();
-        valSites.Text = Loc.T("lbl.entries", Core.BlacklistCount());
+        if (details)
+        {
+            valEngine.Text = "DPI Fix Engine " + Core.EngineVersion;
+            valProfile.Text = Core.CurrentArgsShort();
+            valSites.Text = Loc.T("lbl.entries", Core.BlacklistCount());
+        }
 
         if (!busy) btnStop.Enabled = st == "running";
     }
@@ -376,6 +388,11 @@ class MainForm : Form
     {
         if (InvokeRequired) { BeginInvoke((MethodInvoker)delegate { LogText(s); }); return; }
         log.AppendText(s + "\r\n");
+        if (log.TextLength > 48000)
+        {
+            log.Select(0, log.TextLength - 32000);
+            log.SelectedText = "";
+        }
         log.SelectionStart = log.TextLength;
         log.ScrollToCaret();
     }
@@ -400,7 +417,7 @@ class MainForm : Form
     {
         RunAsync("run.stop", delegate
         {
-            Core.StopService();
+            Core.StopAndRestore();
             Core.Log(Loc.T("st." + Core.State()));
         });
     }
@@ -488,7 +505,12 @@ static class Program
             Core.Sink = delegate (string s) { try { Console.WriteLine(s); } catch { } };
 
             if (cmd == "--install") { bool ok = Core.Install(); Environment.Exit(ok ? 0 : 1); }
-            else if (cmd == "--uninstall") { Core.Uninstall(); Environment.Exit(0); }
+            else if (cmd == "--uninstall")
+            {
+                try { Core.Uninstall(); }
+                catch (Exception ex) { Core.Log(ex.Message); Environment.ExitCode = 1; }
+                return;
+            }
             else if (cmd == "--status") { Console.WriteLine(Core.StateText()); Environment.Exit(0); }
             else if (cmd == "--test") { Core.Test(); Environment.Exit(0); }
             else if (cmd == "--update") { Core.CheckUpdate(); Environment.Exit(0); }
