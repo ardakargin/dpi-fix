@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="DPI Fix is an open-source desktop utility for managing DPI and DNS compatibility on Windows.">
+<meta name="theme-color" content="#101419">
+<title>DPI Fix — Connection compatibility for Windows</title>
+<link rel="icon" href="assets/favicon.png">
+<style>
+:root{color-scheme:dark;--bg:#101419;--panel:#171e25;--line:#2e3944;--text:#eef4f7;--muted:#b2c1cc;--accent:#67e4cb}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 "Inter","Segoe UI",system-ui,sans-serif}a{color:inherit;text-underline-offset:4px}button,select{font:inherit}a:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:5px}
+.wrap{width:min(1120px,calc(100% - 48px));margin:auto}.skip{position:absolute;top:-100px;left:20px}.skip:focus{top:8px;z-index:2;background:var(--panel);padding:8px}
+header{border-bottom:1px solid var(--line)}.bar{min-height:76px;display:flex;align-items:center;justify-content:space-between;gap:18px}.brand{display:flex;align-items:center;gap:12px;font-weight:750;text-decoration:none}.brand img{width:35px;height:35px;object-fit:contain}.bar nav,.actions{display:flex;align-items:center;gap:20px;flex-wrap:wrap}nav a{font-size:14px;color:var(--muted)}select{color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px}
+.hero{display:grid;grid-template-columns:1.2fr .8fr;gap:52px;align-items:center;padding:94px 0 72px}.hero h1{font-size:clamp(40px,6vw,76px);line-height:1.04;letter-spacing:-.055em;margin:0 0 24px;max-width:12ch}p{color:var(--muted);margin:0 0 20px}.hero p{max-width:52ch;font-size:18px}.actions{gap:12px}.btn{display:inline-block;text-decoration:none;border-radius:9px;padding:11px 17px;border:1px solid var(--line);font-weight:650}.primary{background:var(--accent);border-color:var(--accent);color:#09241f}.btn:hover,nav a:hover{filter:brightness(1.15);text-decoration:underline}
+.visual{min-height:300px;display:grid;place-items:center;border:1px solid var(--line);border-radius:22px;background:radial-gradient(ellipse at center,#214946,transparent 69%),var(--panel);overflow:hidden}.visual img{width:min(60%,230px);height:auto;filter:drop-shadow(0 15px 35px #0007)}
+section{padding:55px 0;border-top:1px solid var(--line)}h2{font-size:clamp(26px,4vw,42px);line-height:1.15;margin:0 0 24px;letter-spacing:-.035em}h3{margin:0 0 8px;font-size:19px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.card{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:22px}.card p{margin-bottom:12px}.card a{color:var(--accent)}details{max-width:760px;border-bottom:1px solid var(--line);padding:15px 0}summary{cursor:pointer;font-weight:600}details p{margin:12px 0 0}footer{border-top:1px solid var(--line);padding:24px 0;color:var(--muted)}
+@media(max-width:760px){.hero{grid-template-columns:1fr;gap:28px;padding:50px 0}.visual{min-height:200px}.visual img{width:130px}.grid{grid-template-columns:1fr}.bar nav{display:none}}@media(max-width:380px){.wrap{width:calc(100% - 32px)}}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main" data-i="skip">Skip to content</a>
+<header><div class="wrap bar"><a class="brand" href="#"><img src="assets/logo.png" alt="" width="35" height="35">DPI Fix</a><nav aria-label="Site"><a href="#platforms" data-i="platforms">Platforms</a><a href="#help" data-i="help">Help</a></nav><select id="language" aria-label="Language"><option value="en">English</option><option value="tr">Türkçe</option><option value="de">Deutsch</option><option value="fr">Français</option><option value="es">Español</option></select></div></header>
+<main id="main" class="wrap">
+<div class="hero"><div><h1 data-i="title">Connection compatibility for Windows</h1><p data-i="intro">Manage a list of domains, test connectivity and run DPI Fix as a background service.</p><div class="actions"><a class="btn primary" href="https://github.com/ardakargin/dpi-fix/releases/latest/download/Setup.exe" data-i="download">Download for Windows</a><a class="btn" href="https://github.com/ardakargin/dpi-fix" data-i="source">View source</a></div></div><div class="visual"><img src="assets/logo.png" width="230" height="230" alt=""></div></div>
+<section id="platforms"><h2 data-i="platforms">Platforms</h2><div class="grid"><article class="card"><h3>Windows</h3><p data-i="windows">Desktop app with an installer, connection checks and a background service.</p><a href="https://github.com/ardakargin/dpi-fix/releases" data-i="releases">Release notes</a></article><article class="card"><h3>Linux</h3><p data-i="linux">Experimental systemd helper for a separately installed nfqws engine.</p><a href="https://github.com/ardakargin/dpi-fix/tree/main/linux" data-i="guide">Setup guide</a></article><article class="card"><h3>macOS</h3><p data-i="mac">Experimental launchd helper for a local SOCKS proxy with ByeDPI.</p><a href="https://github.com/ardakargin/dpi-fix/tree/main/macos" data-i="guide">Setup guide</a></article></div></section>
+<section id="help"><h2 data-i="help">Help</h2><details><summary data-i="q1">What if a website stops loading?</summary><p data-i="a1">Stop the service and test the same site again. Use the connection test and attach the relevant log when reporting an issue.</p></details><details><summary data-i="q2">Does it work on every network?</summary><p data-i="a2">Results depend on your network and provider. The Windows installer checks a sample of sites before keeping a configuration.</p></details></section>
+</main><footer><div class="wrap"><a href="https://github.com/ardakargin/dpi-fix/issues" data-i="issues">Report an issue</a> · <a href="https://github.com/ardakargin/dpi-fix/blob/main/LICENSE">MIT</a></div></footer>
+<script>
+const translations = {
+tr: ["İçeriğe geç","Platformlar","Yardım","Windows için bağlantı uyumluluğu","Alan adı listenizi yönetin, bağlantıyı test edin ve DPI Fix’i arka planda çalıştırın.","Windows için indir","Kaynak kodu","Kurulum, bağlantı kontrolü ve arka plan servisi sunan masaüstü uygulaması.","Sürüm notları","Ayrıca kurulmuş nfqws motoru için deneysel systemd yardımcısı.","Kurulum kılavuzu","ByeDPI ile yerel SOCKS proxy için deneysel launchd yardımcısı.","Bir site açılmazsa ne yapmalıyım?","Servisi durdurup aynı siteyi yeniden deneyin. Sorun bildirirken bağlantı testini ve ilgili günlüğü ekleyin.","Her ağda çalışır mı?","Sonuçlar ağınıza ve sağlayıcınıza bağlıdır. Windows kurulumu bir yapılandırmayı kalıcı hale getirmeden önce örnek siteleri kontrol eder.","Sorun bildir"],
+de: ["Zum Inhalt","Plattformen","Hilfe","Verbindungskompatibilität für Windows","Verwalten Sie eine Domainliste, prüfen Sie die Verbindung und führen Sie DPI Fix im Hintergrund aus.","Für Windows herunterladen","Quellcode ansehen","Desktop-App mit Installationsprogramm, Verbindungstest und Hintergrunddienst.","Versionshinweise","Experimentelles systemd-Hilfsprogramm für separat installiertes nfqws.","Installationsanleitung","Experimentelles launchd-Hilfsprogramm für einen lokalen SOCKS-Proxy mit ByeDPI.","Was tun, wenn eine Website nicht lädt?","Stoppen Sie den Dienst und testen Sie dieselbe Website erneut. Fügen Sie Ihrem Fehlerbericht den Verbindungstest und das Protokoll bei.","Funktioniert es in jedem Netz?","Das Ergebnis hängt von Netz und Anbieter ab. Unter Windows prüft das Installationsprogramm einige Websites, bevor es die Konfiguration übernimmt.","Problem melden"],
+fr: ["Aller au contenu","Plateformes","Aide","Compatibilité réseau sous Windows","Gérez une liste de domaines, testez la connexion et exécutez DPI Fix en arrière-plan.","Télécharger pour Windows","Voir le code source","Application de bureau avec installateur, tests de connexion et service en arrière-plan.","Notes de version","Assistant systemd expérimental pour une installation distincte de nfqws.","Guide d’installation","Assistant launchd expérimental pour un proxy SOCKS local avec ByeDPI.","Que faire si un site ne se charge plus ?","Arrêtez le service et réessayez. Joignez le test de connexion et le journal au signalement.","Est-ce compatible avec tous les réseaux ?","Les résultats dépendent du réseau et de l’opérateur. Sous Windows, l’installateur vérifie plusieurs sites avant de conserver la configuration.","Signaler un problème"],
+es: ["Saltar al contenido","Plataformas","Ayuda","Compatibilidad de conexión en Windows","Gestiona una lista de dominios, prueba la conexión y ejecuta DPI Fix en segundo plano.","Descargar para Windows","Ver código fuente","Aplicación de escritorio con instalador, pruebas de conexión y servicio en segundo plano.","Notas de versión","Asistente systemd experimental para nfqws instalado por separado.","Guía de instalación","Asistente launchd experimental para un proxy SOCKS local con ByeDPI.","¿Qué hago si una página deja de cargar?","Detén el servicio y vuelve a probar la página. Adjunta la prueba de conexión y el registro al informar del problema.","¿Funciona en todas las redes?","El resultado depende de la red y el proveedor. En Windows, el instalador comprueba varios sitios antes de conservar la configuración.","Informar de un problema"]
+};
+const keys = "skip platforms help title intro download source windows releases linux guide mac q1 a1 q2 a2 issues".split(" ");
+const nodes = [...document.querySelectorAll("[data-i]")];
+const english = Object.fromEntries(nodes.map(node => [node.dataset.i, node.textContent]));
+const language = document.querySelector("#language");
+function apply(code) {
+  if (!Object.hasOwn(translations, code)) code = "en";
+  language.value = document.documentElement.lang = code;
+  nodes.forEach(node => {
+    const key = node.dataset.i;
+    node.textContent = code === "en" ? english[key] : translations[code][keys.indexOf(key)];
+  });
+  document.title = "DPI Fix — " + document.querySelector("h1").textContent;
+}
+let initial = navigator.language.split("-")[0];
+try { initial = localStorage.getItem("dpi-fix-language") || initial; } catch {}
+apply(initial);
+language.addEventListener("change", () => {
+  apply(language.value);
+  try { localStorage.setItem("dpi-fix-language", language.value); } catch {}
+});
+</script>
+</body>
+</html>

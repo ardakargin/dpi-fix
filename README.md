@@ -10,8 +10,9 @@ Derin Paket İncelemesi (DPI) ve DNS kaynaklı erişim sorunları için açık k
 
 **Windows indirmeleri**
 
-- [DPI Fix 2.3.0 ön sürüm](https://github.com/ardakargin/dpi-fix/releases/tag/v2.3.0) — DPI Fix Engine ile Windows x64 paketi.
-- [Son kararlı sürüm](https://github.com/ardakargin/dpi-fix/releases/latest) — Önceki Windows motorunu içerir.
+- [Windows x64 için Setup.exe](https://github.com/ardakargin/dpi-fix/releases/latest/download/Setup.exe)
+- [Sürüm notları ve diğer indirmeler](https://github.com/ardakargin/dpi-fix/releases/latest)
+- [DPI Fix tanıtım sitesi](https://ardakargin.github.io/dpi-fix/)
 
 ---
 
