@@ -9,6 +9,7 @@ using System.Net.NetworkInformation;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -23,7 +24,7 @@ static class Core
     public const string SvcDisplay = "DPI Fix";
     public const string SvcDesc = "DPI Fix native engine";
     public const string LegacySvc = "GoodbyeDPI";
-    public const string AppVersion = "2.3.2";
+    public const string AppVersion = "2.3.3";
     public const string EngineVersion = EngineInfo.Version;
     public const string ReleasesApi = "https://api.github.com/repos/ardakargin/dpi-fix/releases/latest";
 
@@ -660,6 +661,12 @@ static class Core
 
     // ---------------- kurulum ----------------
 
+    public static bool SupportedWindows()
+    {
+        return Environment.GetEnvironmentVariable("PROCESSOR_ARCHITECTURE") == "AMD64" ||
+               Environment.GetEnvironmentVariable("PROCESSOR_ARCHITEW6432") == "AMD64";
+    }
+
     public static bool Install()
     {
         lock (Gate)
@@ -670,7 +677,7 @@ static class Core
             bool created = false;
             try
             {
-                if (Environment.GetEnvironmentVariable("PROCESSOR_ARCHITECTURE") != "AMD64" && Environment.GetEnvironmentVariable("PROCESSOR_ARCHITEW6432") != "AMD64")
+                if (!SupportedWindows())
                     throw new PlatformNotSupportedException("DPI Fix requires x64 Windows.");
                 Log(Loc.T("log.step2"));
                 StopService();
@@ -757,7 +764,7 @@ static class Core
         }) + "\"";
     }
 
-    public static void Uninstall()
+    public static bool Uninstall()
     {
         lock (Gate)
         {
@@ -766,7 +773,67 @@ static class Core
             if (!RestoreDns()) throw new InvalidOperationException("DNS restoration failed. Backup retained.");
             if (State() != "absent" && Sc("delete " + SvcName, out output) != 0)
                 throw new InvalidOperationException(output);
-            if (Directory.Exists(DataDir)) Directory.Delete(DataDir, true);
+            RemoveOwnedDriver();
+            return Directory.Exists(DataDir) && RemoveDataDirectory(DataDir);
+        }
+    }
+
+    static bool RemoveDataDirectory(string path)
+    {
+        FileAttributes attributes = File.GetAttributes(path);
+        if ((attributes & FileAttributes.ReparsePoint) != 0)
+            throw new IOException("Refusing to remove redirected DPI Fix directory: " + path);
+        bool delayed = false;
+        foreach (string folder in Directory.GetDirectories(path))
+            delayed |= RemoveDataDirectory(folder);
+        foreach (string file in Directory.GetFiles(path))
+            delayed |= RemoveOwnedFile(file);
+        if (delayed) QueueRemoval(path);
+        else Directory.Delete(path);
+        return delayed;
+    }
+
+    internal static bool RemoveOwnedFile(string path)
+    {
+        try { File.Delete(path); return false; }
+        catch (IOException)
+        {
+            QueueRemoval(path);
+            return true;
+        }
+    }
+
+    internal static void QueueRemoval(string path)
+    {
+        const int delayUntilReboot = 4;
+        if (!MoveFileEx(path, null, delayUntilReboot))
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern bool MoveFileEx(string existing, string destination, int flags);
+
+    static void RemoveOwnedDriver()
+    {
+        const string name = "WinDivert";
+        using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\WinDivert"))
+        {
+            if (key == null) return;
+            string path = Environment.ExpandEnvironmentVariables(Convert.ToString(key.GetValue("ImagePath"))).Trim('"');
+            if (path.StartsWith(@"\??\", StringComparison.Ordinal)) path = path.Substring(4);
+            string owned = Path.Combine(PayloadDir, "WinDivert64.sys");
+            if (!String.Equals(path, owned, StringComparison.OrdinalIgnoreCase)) return;
+        }
+        using (ServiceController driver = new ServiceController(name))
+        {
+            string output;
+            if (driver.Status != ServiceControllerStatus.Stopped)
+            {
+                if (driver.Status != ServiceControllerStatus.StopPending && Sc("stop " + name, out output) != 0)
+                    throw new InvalidOperationException(output);
+                driver.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(12));
+            }
+            if (Sc("delete " + name, out output) != 0) throw new InvalidOperationException(output);
         }
     }
 

@@ -14,7 +14,7 @@ static class SetupCore
 {
     public const string AppName = "DPI Fix";
     public const string Pub = "DpiFix";
-    public const string DisplayVer = "2.3.2";
+    public const string DisplayVer = Core.AppVersion;
     const string ResApp = "payload_app";
 
     public static string TargetDir
@@ -40,30 +40,82 @@ static class SetupCore
         if (Sink != null) { try { Sink(s); } catch { } }
     }
 
-    // ---- gömülü uygulamayı çıkar ----
-    public static bool ExtractApp()
+    static void PublishFile(string staged, string destination, string backup)
     {
+        if (File.Exists(destination)) File.Replace(staged, destination, backup);
+        else File.Move(staged, destination);
+    }
+
+    static bool RunExclusive(Func<bool> operation)
+    {
+        using (Mutex mutex = new Mutex(false, @"Global\DpiFix.Setup"))
+        {
+            bool entered;
+            try { entered = mutex.WaitOne(0); }
+            catch (AbandonedMutexException) { entered = true; }
+            if (!entered) throw new InvalidOperationException(Loc.T("setup.busy"));
+            try { return operation(); }
+            finally { mutex.ReleaseMutex(); }
+        }
+    }
+
+    static void InstallFiles()
+    {
+        Directory.CreateDirectory(TargetDir);
+        string token = "." + Guid.NewGuid().ToString("N");
+        string appStage = TargetExe + token + ".tmp";
+        string setupStage = TargetSetup + token + ".tmp";
+        string previousApp = TargetExe + token + ".bak";
+        string previousSetup = TargetSetup + token + ".bak";
+        bool appPublished = false, setupPublished = false;
+        bool sameSetup = String.Equals(Assembly.GetExecutingAssembly().Location, TargetSetup, StringComparison.OrdinalIgnoreCase);
         try
         {
-            Directory.CreateDirectory(TargetDir);
-            Assembly asm = Assembly.GetExecutingAssembly();
-            using (Stream s = asm.GetManifestResourceStream(ResApp))
+            using (Stream resource = Assembly.GetExecutingAssembly().GetManifestResourceStream(ResApp))
             {
-                if (s == null) { Log("HATA: gömülü uygulama bulunamadı."); return false; }
-                byte[] buf = new byte[s.Length];
-                int off = 0;
-                while (off < buf.Length)
-                {
-                    int n = s.Read(buf, off, buf.Length - off);
-                    if (n <= 0) break;
-                    off += n;
-                }
-                File.WriteAllBytes(TargetExe, buf);
+                if (resource == null) throw new InvalidDataException(Loc.T("setup.missing"));
+                using (FileStream output = File.Create(appStage)) resource.CopyTo(output);
             }
-            Log("Uygulama yazıldı: " + TargetExe);
-            return true;
+            if (!sameSetup)
+            {
+                File.Copy(Assembly.GetExecutingAssembly().Location, setupStage);
+                File.SetAttributes(setupStage, FileAttributes.Normal);
+            }
+            PublishFile(appStage, TargetExe, previousApp);
+            appPublished = true;
+            if (!sameSetup)
+            {
+                PublishFile(setupStage, TargetSetup, previousSetup);
+                setupPublished = true;
+            }
+            WriteRegistry();
         }
-        catch (Exception ex) { Log("HATA: " + ex.Message); return false; }
+        catch
+        {
+            if (setupPublished) RollbackFile(TargetSetup, previousSetup);
+            if (appPublished) RollbackFile(TargetExe, previousApp);
+            throw;
+        }
+        finally
+        {
+            DeleteTemporaryFile(appStage);
+            DeleteTemporaryFile(setupStage);
+        }
+        DeleteTemporaryFile(previousApp);
+        DeleteTemporaryFile(previousSetup);
+    }
+
+    static void RollbackFile(string path, string backup)
+    {
+        if (File.Exists(backup)) File.Replace(backup, path, null);
+        else File.Delete(path);
+    }
+
+    static void DeleteTemporaryFile(string path)
+    {
+        try { File.Delete(path); }
+        catch (IOException ex) { Log(ex.Message); }
+        catch (UnauthorizedAccessException ex) { Log(ex.Message); }
     }
 
     // ---- kısayol (WScript.Shell, harici bağımlılık yok) ----
@@ -82,32 +134,27 @@ static class SetupCore
             if (args != null && args.Length > 0)
                 t.InvokeMember("Arguments", BindingFlags.SetProperty, null, lnk, new object[] { args });
             t.InvokeMember("Save", BindingFlags.InvokeMethod, null, lnk, null);
-            Log("Kısayol: " + Path.GetFileName(lnkPath));
+            Log(Loc.T("setup.shortcut", Path.GetFileName(lnkPath)));
         }
-        catch (Exception ex) { Log("Kısayol oluşturulamadı: " + ex.Message); }
+        catch (Exception ex) { Log(Loc.T("setup.error", ex.Message)); }
     }
 
     static string UninstallKey { get { return @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\DpiFix"; } }
 
     public static void WriteRegistry()
     {
-        try
+        using (RegistryKey key = Registry.LocalMachine.CreateSubKey(UninstallKey))
         {
-            using (RegistryKey k = Registry.LocalMachine.CreateSubKey(UninstallKey))
-            {
-                k.SetValue("DisplayName", AppName);
-                k.SetValue("DisplayVersion", DisplayVer);
-                k.SetValue("Publisher", Pub);
-                k.SetValue("DisplayIcon", TargetExe);
-                k.SetValue("InstallLocation", TargetDir);
-                k.SetValue("NoModify", 1);
-                k.SetValue("NoRepair", 1);
-                k.SetValue("UninstallString", "\"" + TargetSetup + "\" --uninstall");
-                k.SetValue("EstimatedSize", 1200, RegistryValueKind.DWord);
-            }
-            Log("Program Ekle/Kaldır kaydı oluşturuldu.");
+            key.SetValue("DisplayName", AppName);
+            key.SetValue("DisplayVersion", DisplayVer);
+            key.SetValue("Publisher", Pub);
+            key.SetValue("DisplayIcon", TargetExe);
+            key.SetValue("InstallLocation", TargetDir);
+            key.SetValue("NoModify", 1);
+            key.SetValue("NoRepair", 1);
+            key.SetValue("UninstallString", "\"" + TargetSetup + "\" --uninstall");
+            key.SetValue("EstimatedSize", 1200, RegistryValueKind.DWord);
         }
-        catch (Exception ex) { Log("Kayıt yazılamadı: " + ex.Message); }
     }
 
     // ---- uygulamanın kendi günlüğünü izle ----
@@ -145,11 +192,17 @@ static class SetupCore
 
     public static bool Install(bool runServiceInstall, bool tryDoh = false)
     {
-        Log("---- KURULUM ----");
-        if (!ExtractApp()) return false;
+        return RunExclusive(delegate { return InstallCore(runServiceInstall, tryDoh); });
+    }
 
-        try { File.Copy(Assembly.GetExecutingAssembly().Location, TargetSetup, true); Log("Kurulum aracı kopyalandı."); }
-        catch (Exception ex) { Log("Kurulum aracı kopyalanamadı: " + ex.Message); }
+    static bool InstallCore(bool runServiceInstall, bool tryDoh)
+    {
+        if (!Core.SupportedWindows()) throw new PlatformNotSupportedException(Loc.T("setup.arch"));
+        Log(Loc.T("setup.installing"));
+        InstallFiles();
+        Core.LoadSettings();
+        Core.Lang = Loc.Lang;
+        Core.SaveSettings();
 
         Shortcut(Path.Combine(StartMenuDir, AppName + ".lnk"), TargetExe, "", AppName + " - DPI/DNS zorlamasi kaldirici");
         Shortcut(Path.Combine(StartMenuDir, AppName + " Kaldir.lnk"), TargetSetup, "--uninstall", AppName + " kaldir");
@@ -158,69 +211,46 @@ static class SetupCore
 
         if (runServiceInstall)
         {
-            Log("Servis kuruluyor (birkaç saniye)...");
+            Log(Loc.T("setup.testing"));
             long mark = LogMark();
             int code = RunExe(TargetExe, tryDoh ? "--install --try-doh" : "--install");
             LogTail(mark);
             if (code != 0)
             {
-                Log("Uygulama kuruldu. Bu bağlantıda doğrulanmış bir servis profili etkinleştirilemedi (kod " + code + ").");
+                Log(Loc.T("setup.appOnly"));
                 return false;
             }
-            Log("Servis kuruldu ve başlatıldı.");
+            Log(Loc.T("setup.active"));
         }
 
-        Log("---- Kurulum tamam ----");
+        Log(Loc.T("setup.installed"));
         return true;
     }
 
-    public static void Uninstall()
+    public static bool Uninstall()
     {
-        Log("---- KALDIRMA ----");
-        try
-        {
-            if (File.Exists(TargetExe))
-            {
-                long mark = LogMark();
-                int result = RunExe(TargetExe, "--uninstall");
-                LogTail(mark);
-                if (result != 0) throw new InvalidOperationException("DPI Fix service removal failed.");
-            }
-        }
-        catch (Exception ex)
-        {
-            Log("Servis kaldırma hatası: " + ex.Message);
-            throw;
-        }
-
-        DeleteShortcut(Path.Combine(StartMenuDir, AppName + ".lnk"));
-        DeleteShortcut(Path.Combine(StartMenuDir, AppName + " Kaldir.lnk"));
-
-        try { Registry.LocalMachine.DeleteSubKeyTree(UninstallKey, false); Log("Kayıt silindi."); }
-        catch (Exception ex) { Log("Kayıt silinemedi: " + ex.Message); }
-
-        Log("---- Kaldırıldı. Klasör arka planda temizlenecek. ----");
-        SelfDeleteDir();
+        return RunExclusive(UninstallCore);
     }
 
-    static void DeleteShortcut(string p)
+    static bool UninstallCore()
     {
-        try { if (File.Exists(p)) { File.Delete(p); Log("Kısayol silindi: " + Path.GetFileName(p)); } }
-        catch { }
-    }
+        Log(Loc.T("setup.removing"));
+        Core.Sink = Log;
+        bool delayed = Core.Uninstall();
 
-    // Kendi klasörünü silmek için: cmd'ye gecikmeli rmdir yaptır, sonra çık.
-    static void SelfDeleteDir()
-    {
-        try
-        {
-            ProcessStartInfo psi = new ProcessStartInfo("cmd.exe",
-                "/c ping -n 4 127.0.0.1 >nul & rmdir /s /q \"" + TargetDir + "\"");
-            psi.UseShellExecute = false;
-            psi.CreateNoWindow = true;
-            Process.Start(psi);
-        }
-        catch { }
+        File.Delete(Path.Combine(StartMenuDir, AppName + ".lnk"));
+        File.Delete(Path.Combine(StartMenuDir, AppName + " Kaldir.lnk"));
+        Registry.LocalMachine.DeleteSubKeyTree(UninstallKey, false);
+
+        delayed |= Core.RemoveOwnedFile(TargetExe);
+        delayed |= Core.RemoveOwnedFile(TargetSetup);
+        if (Directory.Exists(TargetDir) && Directory.GetFileSystemEntries(TargetDir).Length == 0)
+            Directory.Delete(TargetDir);
+        else if (delayed && Directory.GetFileSystemEntries(TargetDir).Length <= 2)
+            Core.QueueRemoval(TargetDir);
+
+        Log(Loc.T(delayed ? "setup.restart" : "setup.removed"));
+        return delayed;
     }
 
     static int RunExe(string file, string args)
@@ -230,11 +260,13 @@ static class SetupCore
             ProcessStartInfo psi = new ProcessStartInfo(file, args);
             psi.UseShellExecute = false;
             psi.CreateNoWindow = true;
-            Process p = Process.Start(psi);
-            p.WaitForExit();
-            return p.ExitCode;
+            using (Process p = Process.Start(psi))
+            {
+                p.WaitForExit();
+                return p.ExitCode;
+            }
         }
-        catch (Exception ex) { Log("Çalıştırılamadı: " + ex.Message); return -1; }
+        catch (Exception ex) { Log(Loc.T("setup.error", ex.Message)); return -1; }
     }
 
     public static bool Installed()
@@ -245,143 +277,166 @@ static class SetupCore
 
 class SetupForm : Form
 {
-    TextBox log;
-    Button btnGo;
-    CheckBox chkService, chkDoh;
-    Label status;
+    readonly TextBox log;
+    readonly FlatButton install, remove, open;
+    readonly CheckBox network, doh;
+    readonly ComboBox language;
+    readonly Label title, location, status, activity;
+    bool busy;
+    string statusKey;
 
     public SetupForm()
     {
-        Text = "DPI Fix Kurulumu";
-        ClientSize = new Size(560, 448);
-        FormBorderStyle = FormBorderStyle.FixedSingle;
-        MaximizeBox = false;
+        ClientSize = new Size(674, 500);
+        MinimumSize = new Size(630, 465);
         StartPosition = FormStartPosition.CenterScreen;
-        Font = new Font("Segoe UI", 9F);
+        BackColor = Theme.Bg;
+        ForeColor = Theme.Fg;
+        Font = Theme.Ui(9.5f, FontStyle.Regular);
+        try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
 
-        Label title = new Label();
-        title.Text = "DPI Fix Kurulumu";
-        title.Font = new Font("Segoe UI Semibold", 14F);
-        title.Location = new Point(16, 14);
-        title.AutoSize = true;
-        Controls.Add(title);
+        var layout = new TableLayoutPanel {
+            Dock = DockStyle.Fill, Padding = new Padding(24, 18, 24, 20),
+            ColumnCount = 2, RowCount = 8, AutoScroll = true
+        };
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 136));
+        for (int i = 0; i < 7; i++) layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        Controls.Add(layout);
 
-        Label sub = new Label();
-        sub.Text = "Türkiye için DPI/DNS zorlamasını kaldırır.\r\nKurulum yeri: " + SetupCore.TargetDir;
-        sub.ForeColor = Color.Gray;
-        sub.Location = new Point(18, 48);
-        sub.AutoSize = true;
-        Controls.Add(sub);
+        title = LabelFor(20f, FontStyle.Bold, Theme.Fg);
+        layout.Controls.Add(title, 0, 0);
+        language = new ComboBox {
+            Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList,
+            BackColor = Theme.Card, ForeColor = Theme.Fg, AccessibleName = "Language"
+        };
+        language.Items.AddRange(Loc.Names);
+        language.SelectedIndex = Array.IndexOf(Loc.Codes, Loc.Lang);
+        layout.Controls.Add(language, 1, 0);
 
-        status = new Label();
-        status.Font = new Font("Segoe UI Semibold", 9F);
-        status.Location = new Point(18, 92);
-        status.AutoSize = true;
-        status.Text = SetupCore.Installed() ? "Durum: kurulu" : "Durum: kurulu değil";
-        status.ForeColor = SetupCore.Installed() ? Color.SeaGreen : Color.DimGray;
-        Controls.Add(status);
+        location = LabelFor(9f, FontStyle.Regular, Theme.Muted);
+        AddWide(layout, location, 1);
+        status = LabelFor(10f, FontStyle.Bold, Theme.Accent);
+        status.Margin = new Padding(0, 16, 0, 10);
+        AddWide(layout, status, 2);
+        network = new CheckBox { AutoSize = true, ForeColor = Theme.Fg, Margin = new Padding(0, 4, 0, 4) };
+        doh = new CheckBox { AutoSize = true, ForeColor = Theme.Fg, Enabled = false, Margin = new Padding(20, 4, 0, 4) };
+        network.CheckedChanged += delegate { doh.Enabled = !busy && network.Checked; };
+        AddWide(layout, network, 3);
+        AddWide(layout, doh, 4);
 
-        chkService = new CheckBox();
-        chkService.Text = "Kurulumdan sonra servisi hemen kur ve başlat";
-        chkService.Checked = true;
-        chkService.Location = new Point(18, 116);
-        chkService.AutoSize = true;
-        Controls.Add(chkService);
+        var actions = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 12, 0, 10) };
+        install = new FlatButton { Size = new Size(158, 38), FillColor = Theme.Accent, TextColor = Theme.Bg,
+            HoverColor = Theme.Ok, Font = Theme.Ui(9.5f, FontStyle.Bold), Margin = new Padding(0, 0, 8, 0) };
+        remove = new FlatButton { Size = new Size(132, 38), Margin = new Padding(0, 0, 8, 0) };
+        open = new FlatButton { Size = new Size(144, 38), Margin = new Padding(0) };
+        actions.Controls.AddRange(new Control[] { install, remove, open });
+        AddWide(layout, actions, 5);
+        AcceptButton = install;
+        install.Click += ClickInstall;
+        remove.Click += ClickRemove;
+        open.Click += delegate { try { Process.Start(SetupCore.TargetExe); } catch (Exception ex) { Log(Loc.T("setup.error", ex.Message)); } };
 
-        chkDoh = new CheckBox();
-        chkDoh.Text = "Gerekirse Windows DNS-over-HTTPS ayarını dene";
-        chkDoh.Location = new Point(18, 140);
-        chkDoh.AutoSize = true;
-        Controls.Add(chkDoh);
-        chkService.CheckedChanged += delegate { chkDoh.Enabled = chkService.Checked; };
+        activity = LabelFor(9f, FontStyle.Bold, Theme.Muted);
+        AddWide(layout, activity, 6);
+        log = new TextBox {
+            Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, BorderStyle = BorderStyle.FixedSingle,
+            ScrollBars = ScrollBars.Vertical, ForeColor = Theme.Fg, BackColor = Theme.CardAlt,
+            Font = Theme.Mono(9f), Margin = new Padding(0, 6, 0, 0)
+        };
+        AddWide(layout, log, 7);
 
-        btnGo = new Button();
-        btnGo.Text = SetupCore.Installed() ? "Yeniden Kur" : "Kur";
-        btnGo.Location = new Point(18, 172);
-        btnGo.Size = new Size(120, 32);
-        btnGo.Click += ClickGo;
-        Controls.Add(btnGo);
-
-        Button btnRemove = new Button();
-        btnRemove.Text = "Kaldır";
-        btnRemove.Location = new Point(146, 172);
-        btnRemove.Size = new Size(90, 32);
-        btnRemove.Click += ClickRemove;
-        Controls.Add(btnRemove);
-
-        Button btnFolder = new Button();
-        btnFolder.Text = "Klasörü Aç";
-        btnFolder.Location = new Point(244, 172);
-        btnFolder.Size = new Size(100, 32);
-        btnFolder.Click += delegate { try { Process.Start("explorer.exe", SetupCore.TargetDir); } catch { } };
-        Controls.Add(btnFolder);
-
-        log = new TextBox();
-        log.Multiline = true;
-        log.ReadOnly = true;
-        log.ScrollBars = ScrollBars.Vertical;
-        log.BackColor = Color.FromArgb(250, 250, 250);
-        log.Font = new Font("Consolas", 8.5F);
-        log.Location = new Point(18, 216);
-        log.Size = new Size(524, 212);
-        Controls.Add(log);
-
+        statusKey = SetupCore.Installed() ? "setup.installed" : "setup.ready";
+        language.SelectedIndexChanged += delegate { Loc.Lang = Loc.Codes[language.SelectedIndex]; ApplyLanguage(); };
         SetupCore.Sink = Log;
-        Log("Hazır. 'Kur' ile kurulum başlar (yönetici yetkisi gerekir).");
+        ApplyLanguage();
     }
 
-    void Log(string s)
+    static Label LabelFor(float size, FontStyle style, Color color)
     {
-        if (InvokeRequired) { BeginInvoke((MethodInvoker)delegate { Log(s); }); return; }
-        log.AppendText(s + "\r\n");
-        log.SelectionStart = log.TextLength;
-        log.ScrollToCaret();
+        return new Label { AutoSize = true, ForeColor = color, Font = Theme.Ui(size, style), Margin = new Padding(0, 2, 0, 3) };
     }
 
-    void ClickGo(object s, EventArgs e)
+    static void AddWide(TableLayoutPanel panel, Control control, int row)
     {
-        btnGo.Enabled = false;
-        Cursor = Cursors.WaitCursor;
-        bool svc = chkService.Checked;
-        bool tryDoh = chkDoh.Checked;
+        panel.Controls.Add(control, 0, row);
+        panel.SetColumnSpan(control, 2);
+    }
+
+    void ApplyLanguage()
+    {
+        Text = title.Text = Loc.T("setup.title");
+        location.Text = Loc.T("setup.location", SetupCore.TargetDir);
+        status.Text = Loc.T(statusKey);
+        install.Text = Loc.T(SetupCore.Installed() ? "setup.repair" : "setup.install");
+        remove.Text = Loc.T("btn.remove");
+        open.Text = Loc.T("setup.open");
+        network.Text = Loc.T("setup.network");
+        doh.Text = Loc.T("setup.doh");
+        activity.Text = Loc.T("setup.log");
+        SetBusy(busy);
+    }
+
+    void SetBusy(bool active)
+    {
+        busy = active;
+        install.Enabled = !active && statusKey != "setup.restart";
+        language.Enabled = !active;
+        network.Enabled = install.Enabled;
+        doh.Enabled = !active && network.Checked;
+        bool installed = SetupCore.Installed();
+        remove.Enabled = open.Enabled = !active && installed && statusKey != "setup.restart";
+        UseWaitCursor = active;
+    }
+
+    void Log(string message)
+    {
+        if (InvokeRequired) { BeginInvoke((MethodInvoker)delegate { Log(message); }); return; }
+        log.AppendText(message + Environment.NewLine);
+    }
+
+    void Run(string pending, Func<string> work)
+    {
+        statusKey = pending;
+        SetBusy(true);
+        ApplyLanguage();
         ThreadPool.QueueUserWorkItem(delegate
         {
-            bool ok = false;
-            try { ok = SetupCore.Install(svc, tryDoh); }
-            catch (Exception ex) { Log("HATA: " + ex.Message); }
+            string result = "setup.failed";
+            try { result = work(); }
+            catch (Exception ex) { Log(Loc.T("setup.error", ex.Message)); }
             BeginInvoke((MethodInvoker)delegate
             {
-                btnGo.Enabled = true;
-                Cursor = Cursors.Default;
-                bool installed = SetupCore.Installed();
-                status.Text = installed ? (ok ? "Durum: kurulu" : "Uygulama kurulu, servis kurulumu tamamlanmadı") : "Durum: kurulu değil";
-                status.ForeColor = installed && ok ? Color.SeaGreen : Color.DimGray;
-                if (ok && MessageBox.Show("Kurulum tamamlandı. Uygulama şimdi açılsın mı?", "DPI Fix",
-                        MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
-                {
-                    try { Process.Start(SetupCore.TargetExe); } catch { }
-                }
+                statusKey = result;
+                status.ForeColor = result == "setup.failed" || result == "setup.appOnly" ? Theme.Warn : Theme.Accent;
+                SetBusy(false);
+                ApplyLanguage();
             });
         });
     }
 
-    void ClickRemove(object s, EventArgs e)
+    void ClickInstall(object sender, EventArgs e)
     {
-        if (MessageBox.Show("DPI Fix kaldırılsın mı? (servis, DNS ayarı ve dosyalar geri alınır)",
-            "Kaldır", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
-        btnGo.Enabled = false;
-        ThreadPool.QueueUserWorkItem(delegate
+        bool start = network.Checked, encrypted = start && doh.Checked;
+        Run("setup.installing", delegate
         {
-            bool removed = false;
-            try { SetupCore.Uninstall(); removed = true; }
-            catch (Exception ex) { Log("HATA: " + ex.Message); }
-            BeginInvoke((MethodInvoker)delegate
-            {
-                btnGo.Enabled = true;
-                status.Text = removed ? "Durum: kurulu değil" : "Kaldırma tamamlanamadı";
-                status.ForeColor = removed ? Color.DimGray : Color.IndianRed;
-            });
+            return SetupCore.Install(start, encrypted)
+                ? (start ? "setup.active" : "setup.installed") : "setup.appOnly";
         });
+    }
+
+    void ClickRemove(object sender, EventArgs e)
+    {
+        if (MessageBox.Show(Loc.T("confirm.remove"), Loc.T("confirm.title"),
+            MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+        Run("setup.removing", delegate { return SetupCore.Uninstall() ? "setup.restart" : "setup.removed"; });
+    }
+
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        if (busy && e.CloseReason == CloseReason.UserClosing) e.Cancel = true;
+        base.OnFormClosing(e);
     }
 }
 
@@ -390,19 +445,23 @@ static class SetupProgram
     [STAThread]
     static void Main(string[] args)
     {
+        Core.LoadSettings();
+        Loc.Lang = Core.Lang;
         string cmd = args.Length > 0 ? args[0].ToLowerInvariant() : "";
 
         if (cmd == "--uninstall")
         {
             SetupCore.Sink = delegate (string s) { try { Console.WriteLine(s); } catch { } };
-            try { SetupCore.Uninstall(); }
-            catch { Environment.ExitCode = 1; }
+            try { if (SetupCore.Uninstall()) Environment.ExitCode = 3010; }
+            catch (Exception ex) { Console.Error.WriteLine(ex.Message); Environment.ExitCode = 1; }
             return;
         }
         if (cmd == "--install")
         {
             SetupCore.Sink = delegate (string s) { try { Console.WriteLine(s); } catch { } };
-            Environment.ExitCode = SetupCore.Install(true, Array.IndexOf(args, "--try-doh") >= 0) ? 0 : 1;
+            bool network = Array.IndexOf(args, "--app-only") < 0;
+            try { Environment.ExitCode = SetupCore.Install(network, Array.IndexOf(args, "--try-doh") >= 0) ? 0 : 1; }
+            catch (Exception ex) { Console.Error.WriteLine(ex.Message); Environment.ExitCode = 1; }
             return;
         }
 

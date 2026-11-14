@@ -115,6 +115,8 @@ class FlatButton : Button
         TextRenderer.DrawText(e.Graphics, Text, Font,
             new Rectangle(0, ty, Width, ts.Height + 2), text,
             TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | TextFormatFlags.NoPadding);
+        if (Focused && ShowFocusCues)
+            ControlPaint.DrawFocusRectangle(e.Graphics, Rectangle.Inflate(ClientRectangle, -4, -4), text, fill);
     }
 }
 
@@ -209,6 +211,52 @@ static class Loc
 
     static Loc()
     {
+        Add("setup.title", "DPI Fix Kurulumu", "DPI Fix Setup");
+        AddInternational("setup.title", "DPI Fix installieren", "Installation de DPI Fix", "Instalación de DPI Fix");
+        Add("setup.location", "Kurulum klasörü: {0}", "Install folder: {0}");
+        AddInternational("setup.location", "Installationsordner: {0}", "Dossier d’installation : {0}", "Carpeta de instalación: {0}");
+        Add("setup.ready", "Kuruluma hazır", "Ready to install");
+        AddInternational("setup.ready", "Bereit zur Installation", "Prêt pour l’installation", "Listo para instalar");
+        Add("setup.install", "Kur", "Install");
+        AddInternational("setup.install", "Installieren", "Installer", "Instalar");
+        Add("setup.repair", "Yeniden Kur", "Reinstall");
+        AddInternational("setup.repair", "Neu installieren", "Réinstaller", "Reinstalar");
+        Add("setup.network", "Kurulumdan sonra bağlantıyı test et ve uygun servisi başlat", "Test the connection and start a compatible service");
+        AddInternational("setup.network", "Verbindung testen und passenden Dienst starten", "Tester la connexion et démarrer un service compatible", "Probar la conexión e iniciar un servicio compatible");
+        Add("setup.doh", "Gerekirse Windows DNS-over-HTTPS’i dene", "Try Windows DNS-over-HTTPS if needed");
+        AddInternational("setup.doh", "Bei Bedarf Windows DNS-over-HTTPS testen", "Essayer le DNS-over-HTTPS de Windows si nécessaire", "Probar DNS-over-HTTPS de Windows si es necesario");
+        Add("setup.open", "Uygulamayı Aç", "Open DPI Fix");
+        AddInternational("setup.open", "DPI Fix öffnen", "Ouvrir DPI Fix", "Abrir DPI Fix");
+        Add("setup.installing", "Uygulama kuruluyor…", "Installing the app…");
+        AddInternational("setup.installing", "App wird installiert…", "Installation de l’application…", "Instalando la aplicación…");
+        Add("setup.testing", "Bağlantı ve servis profili test ediliyor…", "Testing the connection and service profile…");
+        AddInternational("setup.testing", "Verbindung und Dienstprofil werden geprüft…", "Test de la connexion et du profil de service…", "Probando la conexión y el perfil del servicio…");
+        Add("setup.installed", "Uygulama kuruldu", "App installed");
+        AddInternational("setup.installed", "App installiert", "Application installée", "Aplicación instalada");
+        Add("setup.appOnly", "Uygulama kuruldu. Servis etkinleştirilemedi.", "App installed. Service could not be enabled.");
+        AddInternational("setup.appOnly", "App installiert. Dienst konnte nicht aktiviert werden.", "Application installée. Service non activé.", "Aplicación instalada. No se pudo activar el servicio.");
+        Add("setup.active", "Servis çalışıyor", "Service running");
+        AddInternational("setup.active", "Dienst läuft", "Service en cours", "Servicio en ejecución");
+        Add("setup.removing", "DPI Fix kaldırılıyor…", "Removing DPI Fix…");
+        AddInternational("setup.removing", "DPI Fix wird entfernt…", "Suppression de DPI Fix…", "Desinstalando DPI Fix…");
+        Add("setup.removed", "DPI Fix kaldırıldı", "DPI Fix removed");
+        AddInternational("setup.removed", "DPI Fix entfernt", "DPI Fix désinstallé", "DPI Fix desinstalado");
+        Add("setup.restart", "Kaldırmayı tamamlamak için Windows’u yeniden başlatın.", "Restart Windows to finish removal.");
+        AddInternational("setup.restart", "Starten Sie Windows neu, um die Deinstallation abzuschließen.", "Redémarrez Windows pour terminer la désinstallation.", "Reinicia Windows para completar la desinstalación.");
+        Add("setup.error", "İşlem tamamlanamadı. {0}", "Operation could not be completed. {0}");
+        AddInternational("setup.error", "Vorgang fehlgeschlagen. {0}", "L’opération a échoué. {0}", "No se pudo completar la operación. {0}");
+        Add("setup.failed", "İşlem tamamlanamadı", "Operation failed");
+        AddInternational("setup.failed", "Vorgang fehlgeschlagen", "Échec de l’opération", "No se pudo completar");
+        Add("setup.missing", "Kurulum paketindeki uygulama bulunamadı.", "Application missing from setup package.");
+        AddInternational("setup.missing", "App fehlt im Installationspaket.", "Application absente du programme d’installation.", "Falta la aplicación en el instalador.");
+        Add("setup.busy", "Başka bir DPI Fix kurulumu çalışıyor.", "Another DPI Fix setup is running.");
+        AddInternational("setup.busy", "Ein anderes DPI Fix-Setup läuft bereits.", "Une autre installation de DPI Fix est en cours.", "Ya se está ejecutando otra instalación de DPI Fix.");
+        Add("setup.arch", "DPI Fix, Windows x64 gerektirir.", "DPI Fix requires Windows x64.");
+        AddInternational("setup.arch", "DPI Fix erfordert Windows x64.", "DPI Fix nécessite Windows x64.", "DPI Fix requiere Windows x64.");
+        Add("setup.shortcut", "Kısayol oluşturuldu: {0}", "Shortcut created: {0}");
+        AddInternational("setup.shortcut", "Verknüpfung erstellt: {0}", "Raccourci créé : {0}", "Acceso directo creado: {0}");
+        Add("setup.log", "İşlem günlüğü", "Activity log");
+        AddInternational("setup.log", "Vorgangsprotokoll", "Journal des opérations", "Registro de actividad");
         Add("app.title", "DPI / DNS Zorlaması Kaldırıcı", "DPI / DNS Block Remover");
         Add("app.sub", "DPI Fix Engine {0} · otomatik yapılandırma · kalıcı servis",
                       "DPI Fix Engine {0} · automatic setup · persistent service");

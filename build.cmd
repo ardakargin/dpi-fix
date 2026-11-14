@@ -52,7 +52,7 @@ REM ---------- 3) Setup.exe : kurulum dosyasi (DpiFix.exe gomulu) ----------
 "%CSC%" /nologo /target:winexe /codepage:65001 /optimize+ /out:%OUT%\Setup.exe ^
   /win32manifest:src\app.manifest !ICON_RES! %REF% ^
   /resource:%OUT%\DpiFix.exe,payload_app ^
-  src\Setup.cs
+  src\Ui.cs src\EngineInfo.g.cs src\DpiCore.cs src\Setup.cs
 IF ERRORLEVEL 1 (echo [HATA] Setup.exe derlenemedi. & POPD & EXIT /B 1)
 echo [OK] %OUT%\Setup.exe
 

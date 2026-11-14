@@ -367,14 +367,14 @@ class MainForm : Form
             valSites.Text = Loc.T("lbl.entries", Core.BlacklistCount());
         }
 
-        if (!busy) btnStop.Enabled = st == "running";
+        if (!busy) btnStop.Enabled = st == "running" || File.Exists(Core.DnsBackupPath);
     }
 
     void SetBusy(bool b)
     {
         busy = b;
         btnInstall.Enabled = !b;
-        btnStop.Enabled = !b && Core.State() == "running";
+        btnStop.Enabled = !b && (Core.State() == "running" || File.Exists(Core.DnsBackupPath));
         btnRemove.Enabled = !b;
         btnTest.Enabled = !b;
         btnList.Enabled = !b;
@@ -411,6 +411,12 @@ class MainForm : Form
         });
     }
 
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        if (busy && e.CloseReason == CloseReason.UserClosing) e.Cancel = true;
+        base.OnFormClosing(e);
+    }
+
     void ClickInstall(object s, EventArgs e) { RunAsync("run.install", delegate { Core.Install(); }); }
 
     void ClickStop(object s, EventArgs e)
@@ -426,7 +432,7 @@ class MainForm : Form
     {
         if (MessageBox.Show(Loc.T("confirm.remove"), Loc.T("confirm.title"),
             MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
-        RunAsync("run.remove", delegate { Core.Uninstall(); });
+        RunAsync("run.remove", delegate { LogText(Loc.T(Core.Uninstall() ? "setup.restart" : "log.removed")); });
     }
 
     void ClickTest(object s, EventArgs e) { RunAsync("run.test", delegate { Core.Test(); }); }
@@ -512,7 +518,7 @@ static class Program
             }
             else if (cmd == "--uninstall")
             {
-                try { Core.Uninstall(); }
+                try { if (Core.Uninstall()) Environment.ExitCode = 3010; }
                 catch (Exception ex) { Core.Log(ex.Message); Environment.ExitCode = 1; }
                 return;
             }
