@@ -23,7 +23,7 @@ static class SetupCore
 
     public static string TargetDir
     {
-        get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "DpiFix"); }
+        get { return Core.InstallDir; }
     }
     public static string TargetExe { get { return Path.Combine(TargetDir, "DpiFix.exe"); } }
     public static string TargetSetup { get { return Path.Combine(TargetDir, "Kurulum.exe"); } }
@@ -260,12 +260,12 @@ static class SetupCore
         catch { }
     }
 
-    public static bool Install(bool runServiceInstall, bool tryDoh = false)
+    public static bool Install(bool runServiceInstall, bool? tryDoh = null, bool saveDohChoice = false)
     {
-        return RunExclusive(delegate { return InstallCore(runServiceInstall, tryDoh); });
+        return RunExclusive(delegate { return InstallCore(runServiceInstall, tryDoh, saveDohChoice); });
     }
 
-    static bool InstallCore(bool runServiceInstall, bool tryDoh)
+    static bool InstallCore(bool runServiceInstall, bool? tryDoh, bool saveDohChoice)
     {
         if (!Core.SupportedWindows()) throw new PlatformNotSupportedException(Loc.T("setup.arch"));
         if (PendingRemoval()) throw new InvalidOperationException(Loc.T("setup.restart"));
@@ -273,7 +273,8 @@ static class SetupCore
         InstallFiles();
         Core.LoadSettings();
         Core.Lang = Loc.Lang;
-        Core.SaveSettings();
+        if (saveDohChoice) Core.DohPreference = tryDoh;
+        Core.SaveSettings(required: saveDohChoice);
 
         CreateAppShortcut();
         File.Delete(LegacyUninstallShortcut);
@@ -283,7 +284,9 @@ static class SetupCore
         {
             Log(Loc.T("setup.testing"));
             long mark = LogMark();
-            int code = RunExe(TargetExe, tryDoh ? "--install --try-doh" : "--install");
+            string arguments = "--install";
+            if (tryDoh.HasValue) arguments += tryDoh.Value ? " --try-doh" : " --no-doh";
+            int code = RunExe(TargetExe, arguments);
             LogTail(mark);
             if (code != 0)
             {
@@ -314,6 +317,7 @@ static class SetupCore
         if (Directory.Exists(TargetDir))
         {
             string[] queuedFiles = {
+                delayed && Directory.Exists(Core.ServiceFilesDir) ? Core.ServiceFilesDir : null,
                 RemoveInstalledExecutable(TargetBrowser),
                 RemoveInstalledExecutable(TargetExe),
                 RemoveInstalledExecutable(TargetSetup)
@@ -402,8 +406,9 @@ class SetupForm : Form
         status = LabelFor(10f, FontStyle.Bold, Theme.Accent);
         status.Margin = new Padding(0, 16, 0, 10);
         AddWide(layout, status, 2);
-        network = new CheckBox { AutoSize = true, ForeColor = Theme.Fg, Margin = new Padding(0, 4, 0, 4) };
-        doh = new CheckBox { AutoSize = true, ForeColor = Theme.Fg, Enabled = false, Margin = new Padding(20, 4, 0, 4) };
+        network = new CheckBox { AutoSize = true, ForeColor = Theme.Fg, Checked = true, Margin = new Padding(0, 4, 0, 4) };
+        doh = new CheckBox { AutoSize = true, ForeColor = Theme.Fg, Checked = Core.DohPreference ?? true,
+            Margin = new Padding(20, 4, 0, 4) };
         network.CheckedChanged += delegate { doh.Enabled = !busy && network.Checked; };
         AddWide(layout, network, 3);
         AddWide(layout, doh, 4);
@@ -515,10 +520,11 @@ class SetupForm : Form
 
     void ClickInstall(object sender, EventArgs e)
     {
-        bool start = network.Checked, encrypted = start && doh.Checked;
+        bool start = network.Checked;
+        bool? encrypted = start ? (bool?)doh.Checked : null;
         Run("setup.installing", delegate
         {
-            return SetupCore.Install(start, encrypted)
+            return SetupCore.Install(start, encrypted, saveDohChoice: start)
                 ? (start ? "setup.active" : "setup.installed") : "setup.appOnly";
         });
     }
@@ -562,7 +568,7 @@ static class SetupProgram
         {
             SetupCore.Sink = delegate (string s) { try { Console.WriteLine(s); } catch { } };
             bool network = Array.IndexOf(args, "--app-only") < 0;
-            try { Environment.ExitCode = SetupCore.Install(network, Array.IndexOf(args, "--try-doh") >= 0) ? 0 : 1; }
+            try { Environment.ExitCode = SetupCore.Install(network, Core.DohOverride(args)) ? 0 : 1; }
             catch (Exception ex) { Console.Error.WriteLine(ex.Message); Environment.ExitCode = 1; }
             return;
         }

@@ -5,6 +5,7 @@ pub struct Config {
     pub domains: PathBuf,
     pub http: bool,
     pub tls_reorder: bool,
+    pub tls_record_split: bool,
 }
 
 impl Config {
@@ -12,6 +13,7 @@ impl Config {
         let mut domains = None;
         let mut http = false;
         let mut tls_reorder = false;
+        let mut tls_record_split = false;
         let mut args = args.into_iter();
         while let Some(arg) = args.next() {
             match arg.as_str() {
@@ -21,11 +23,15 @@ impl Config {
                     domains = Some(PathBuf::from(value));
                 }
                 "--http" => http = true,
-                "--tls-reorder" => tls_reorder = true,
+                "--tls-reorder" if !tls_reorder => tls_reorder = true,
+                "--tls-record-split" if !tls_record_split => tls_record_split = true,
                 _ => return Err(format!("Unknown or duplicate option: {arg}")),
             }
         }
-        Ok(Self { domains: domains.ok_or("--domains is required")?, http, tls_reorder })
+        if tls_reorder && tls_record_split {
+            return Err("--tls-reorder and --tls-record-split are mutually exclusive".into());
+        }
+        Ok(Self { domains: domains.ok_or("--domains is required")?, http, tls_reorder, tls_record_split })
     }
 }
 
@@ -48,6 +54,19 @@ mod tests {
         let config = Config::parse(args).unwrap();
         assert!(config.tls_reorder);
         assert!(!config.http);
+        assert!(!config.tls_record_split);
+    }
+
+    #[test]
+    fn tls_record_split_is_a_separate_profile() {
+        let args = ["--domains", "sites.txt", "--tls-record-split"].map(String::from).to_vec();
+        let config = Config::parse(args.clone()).unwrap();
+        assert!(config.tls_record_split);
+        assert!(!config.http);
+        assert!(!config.tls_reorder);
+        let mut conflicting = args;
+        conflicting.push("--tls-reorder".into());
+        assert!(Config::parse(conflicting).is_err());
     }
 
     #[test]

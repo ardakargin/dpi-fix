@@ -9,6 +9,7 @@ mod hostlist;
 mod packet;
 mod service;
 mod sniff;
+mod tls_record;
 mod windivert;
 
 use args::Config;
@@ -34,7 +35,7 @@ fn main() -> ExitCode {
     }
 
     if argv.iter().any(|arg| arg == "--help" || arg == "-h") {
-        println!("dpifix-engine --domains FILE [--http] [--tls-reorder]");
+        println!("dpifix-engine --domains FILE [--http] [--tls-reorder | --tls-record-split]");
         return ExitCode::SUCCESS;
     }
     let cfg = match Config::parse(argv) {

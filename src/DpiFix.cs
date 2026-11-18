@@ -278,15 +278,15 @@ class MainForm : Form
     {
         FlatCheck c = new FlatCheck();
         c.Location = new Point(x, y);
-        c.CheckedChanged += delegate { SyncSettingsFromUi(); };
+        c.CheckedChanged += delegate { SyncSettingsFromUi(c); };
         parent.Controls.Add(c);
         return c;
     }
 
-    void SyncSettingsFromUi()
+    void SyncSettingsFromUi(FlatCheck changed)
     {
         if (loading) return;   // ayarlar yüklenirken yazma
-        Core.DohEnabled = chkDoh.Checked;
+        if (changed == chkDoh) Core.DohPreference = chkDoh.Checked;
         Core.AutoReprobe = chkWatch.Checked;
         Core.VerifyPayload = chkVerify.Checked;
         Core.SaveSettings();
@@ -375,7 +375,8 @@ class MainForm : Form
         valSites.Text = Loc.T("lbl.entries", Core.BlacklistCount());
 
         btnStop.Enabled = !busy && (st == "running" || File.Exists(Core.DnsBackupPath));
-        btnRemove.Enabled = !busy && (st != "absent" || Directory.Exists(Core.ServiceFilesDir) || File.Exists(Core.DnsBackupPath));
+        btnRemove.Enabled = !busy && (st != "absent" || Directory.Exists(Core.ServiceFilesDir) ||
+            Directory.Exists(Core.LegacyServiceFilesDir) || File.Exists(Core.DnsBackupPath));
         btnLog.Enabled = File.Exists(Core.LogPath);
     }
 
@@ -539,7 +540,7 @@ static class Program
 
             if (cmd == "--install")
             {
-                bool ok = Core.Install(Array.IndexOf(args, "--try-doh") >= 0);
+                bool ok = Core.Install(Core.DohOverride(args));
                 Environment.Exit(ok ? 0 : 1);
             }
             else if (cmd == "--uninstall")
@@ -553,7 +554,7 @@ static class Program
             else if (cmd == "--update") { Core.CheckUpdate(); Environment.Exit(0); }
             else
             {
-                Console.WriteLine("Kullanım: DpiFix.exe [--install|--uninstall|--status|--test|--update|--selftest]");
+                Console.WriteLine("Kullanım: DpiFix.exe [--install [--try-doh|--no-doh]|--uninstall|--status|--test|--update|--selftest]");
                 Environment.Exit(2);
             }
         }

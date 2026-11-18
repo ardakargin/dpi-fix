@@ -7,5 +7,5 @@ using System.Reflection;
 
 static class ProductInfo
 {
-    public const string Version = "2.3.5";
+    public const string Version = "2.4.0";
 }

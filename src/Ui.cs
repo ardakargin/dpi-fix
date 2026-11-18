@@ -213,6 +213,8 @@ static class Loc
     {
         Add("profile.reordered", "HTTPS (ters TCP sırası)", "HTTPS (reordered TCP)");
         AddInternational("profile.reordered", "HTTPS (umgekehrte TCP-Reihenfolge)", "HTTPS (segments TCP inversés)", "HTTPS (segmentos TCP invertidos)");
+        Add("profile.records", "HTTPS (bölünmüş TLS kayıtları)", "HTTPS (split TLS records)");
+        AddInternational("profile.records", "HTTPS (geteilte TLS-Records)", "HTTPS (enregistrements TLS fractionnés)", "HTTPS (registros TLS divididos)");
         Add("setup.title", "DPI Fix Kurulumu", "DPI Fix Setup");
         AddInternational("setup.title", "DPI Fix installieren", "Installation de DPI Fix", "Instalación de DPI Fix");
         Add("setup.location", "Kurulum klasörü: {0}", "Install folder: {0}");
@@ -223,10 +225,12 @@ static class Loc
         AddInternational("setup.install", "Installieren", "Installer", "Instalar");
         Add("setup.repair", "Yeniden Kur", "Reinstall");
         AddInternational("setup.repair", "Neu installieren", "Réinstaller", "Reinstalar");
-        Add("setup.network", "Kurulumdan sonra bağlantıyı test et ve uygun servisi başlat", "Test the connection and start a compatible service");
-        AddInternational("setup.network", "Verbindung testen und passenden Dienst starten", "Tester la connexion et démarrer un service compatible", "Probar la conexión e iniciar un servicio compatible");
-        Add("setup.doh", "Gerekirse Windows DNS-over-HTTPS’i dene", "Try Windows DNS-over-HTTPS if needed");
-        AddInternational("setup.doh", "Bei Bedarf Windows DNS-over-HTTPS testen", "Essayer le DNS-over-HTTPS de Windows si nécessaire", "Probar DNS-over-HTTPS de Windows si es necesario");
+        Add("setup.network", "Bu bilgisayar için Windows servisini test et ve kur", "Test and install the Windows service for this PC");
+        AddInternational("setup.network", "Windows-Dienst für diesen PC testen und installieren", "Tester et installer le service Windows pour ce PC", "Probar e instalar el servicio de Windows para este PC");
+        Add("setup.doh", "Gerekirse Windows DNS’ini Cloudflare DNS-over-HTTPS ile dene", "Try Cloudflare DNS over HTTPS for Windows DNS if needed");
+        AddInternational("setup.doh", "Bei Bedarf Cloudflare DNS over HTTPS für Windows-DNS testen",
+            "Si nécessaire, tester le DNS sur HTTPS de Cloudflare pour Windows",
+            "Si es necesario, probar DNS sobre HTTPS de Cloudflare en Windows");
         Add("setup.open", "Uygulamayı Aç", "Open DPI Fix");
         AddInternational("setup.open", "DPI Fix öffnen", "Ouvrir DPI Fix", "Abrir DPI Fix");
         Add("setup.installing", "Uygulama kuruluyor…", "Installing the app…");
@@ -334,7 +338,8 @@ static class Loc
         Add("btn.lang", "Dil", "Language");
         Add("btn.close", "Kapat", "Close");
 
-        Add("chk.doh", "DNS-over-HTTPS (Cloudflare)", "DNS-over-HTTPS (Cloudflare)");
+        Add("chk.doh", "Gerekirse Windows DNS-over-HTTPS’i dene", "Try Windows DNS over HTTPS if needed");
+        AddInternational("chk.doh", "Bei Bedarf Windows-DNS über HTTPS testen", "Tester le DNS sur HTTPS de Windows si nécessaire", "Probar DNS sobre HTTPS de Windows si hace falta");
         Add("chk.watch", "Ağ değişince bağlantıyı test et", "Test after network changes");
         Add("chk.verify", "Dosya bütünlüğü doğrulaması", "Payload integrity check");
         Add("log.engine", "Motor: {0}", "Engine: {0}");
@@ -388,20 +393,30 @@ static class Loc
         Add("log.step6", "[6/6] Başlatılıyor", "[6/6] Starting");
         Add("log.trying", "Deneniyor: {0}", "Trying: {0}");
         Add("log.next", "Uygun değil, sonraki adaya geçiliyor.", "Not suitable, moving to next candidate.");
-        Add("log.none", "Mevcut bağlantıları korurken erişimi iyileştiren bir profil doğrulanamadı. Servis etkinleştirilmedi. Discord için DPI Fix’te ‘Discord’u Tarayıcıda Aç’ seçeneğini deneyin.",
-                        "No profile could be verified to improve access while preserving existing connections. The service was not enabled. For Discord, try ‘Discord in Browser’ in DPI Fix.");
-        AddInternational("log.none", "Es konnte kein Profil bestätigt werden, das den Zugriff verbessert und bestehende Verbindungen erhält. Der Dienst wurde nicht aktiviert. Versuchen Sie für Discord die Schaltfläche „Discord im Browser“ in DPI Fix.",
-            "Aucun profil n’a pu être validé comme améliorant l’accès tout en préservant les connexions existantes. Le service n’a pas été activé. Pour Discord, essayez « Discord sur le Web » dans DPI Fix.",
-            "No se pudo verificar ningún perfil que mejorara el acceso sin afectar a las conexiones existentes. El servicio no se activó. Para Discord, prueba «Discord en la web» en DPI Fix.");
-        Add("log.serviceValidationFailed", "Son kontrolde servisin çalıştığı ve mevcut bağlantıları koruyarak erişimi iyileştirdiği doğrulanamadı.",
-            "The final check could not verify that the service was running and improved access while preserving existing connections.");
-        AddInternational("log.serviceValidationFailed", "Die abschließende Prüfung konnte nicht bestätigen, dass der Dienst läuft und den Zugriff verbessert, ohne bestehende Verbindungen zu beeinträchtigen.",
-            "Le contrôle final n’a pas pu confirmer que le service fonctionnait et améliorait l’accès tout en préservant les connexions existantes.",
-            "La comprobación final no pudo confirmar que el servicio estuviera en ejecución y mejorara el acceso sin afectar a las conexiones existentes.");
+        Add("log.none", "Bağlantı kontrollerini geçen bir profil bulunamadı. Windows servisi devre dışı kaldı. Discord için ‘Discord’u Tarayıcıda Aç’ seçeneğini deneyin.",
+                        "No profile passed the connection checks. The Windows service remains inactive. For Discord, try ‘Discord in Browser’.");
+        AddInternational("log.none", "Kein Profil hat die Verbindungstests bestanden. Der Windows-Dienst bleibt inaktiv. Versuchen Sie für Discord „Discord im Browser“.",
+            "Aucun profil n’a réussi les tests de connexion. Le service Windows reste inactif. Pour Discord, essayez « Discord sur le Web ».",
+            "Ningún perfil superó las pruebas de conexión. El servicio de Windows sigue inactivo. Para Discord, prueba «Discord en la web».");
+        Add("log.serviceValidationFailed", "Windows servisi son bağlantı kontrolünü geçemedi.",
+            "The Windows service failed the final connection check.");
+        AddInternational("log.serviceValidationFailed", "Der Windows-Dienst hat den abschließenden Verbindungstest nicht bestanden.",
+            "Le service Windows a échoué au dernier test de connexion.",
+            "El servicio de Windows no superó la comprobación final de conexión.");
         Add("log.chosen", "Seçilen: {0}", "Selected: {0}");
         Add("log.svcfail", "Servis başlamadı. Ayrıntı: {0}", "Service did not start. Detail: {0}");
-        Add("log.done", "Servis çalışıyor. Uygulama kapandığında çalışmayı sürdürür.",
-                        "The service is running. It keeps running after you close the app.");
+        Add("log.done", "Servis çalışıyor. Windows açıldığında başlar ve uygulama kapalıyken çalışır.",
+                        "The service is running. It starts with Windows and runs after you close the app.");
+        Add("log.doneImproved", "Test edilen sitelerden en az birine erişim iyileşti. Mevcut bağlantılar korundu.",
+            "Access improved for at least one tested site and existing connections were preserved.");
+        AddInternational("log.doneImproved", "Der Zugriff auf mindestens eine getestete Website wurde verbessert. Bestehende Verbindungen blieben erhalten.",
+            "L’accès à au moins un des sites testés s’est amélioré et les connexions existantes ont été préservées.",
+            "Mejoró el acceso a por lo menos un sitio probado y se conservaron las conexiones existentes.");
+        Add("log.donePreserved", "Test edilen siteler zaten yanıt veriyordu. Servis mevcut bağlantıları korudu. Erişimde iyileşme ölçülmedi.",
+            "The tested sites already responded. The service preserved existing connections, with no measured improvement in access.");
+        AddInternational("log.donePreserved", "Die getesteten Websites antworteten bereits. Der Dienst erhielt bestehende Verbindungen. Eine Verbesserung des Zugriffs wurde nicht gemessen.",
+            "Les sites testés répondaient déjà. Le service a préservé les connexions existantes. Aucune amélioration de l’accès n’a été mesurée.",
+            "Los sitios probados ya respondían. El servicio conservó las conexiones existentes. No se midió ninguna mejora en el acceso.");
         Add("log.failed", "Servis kurulumu tamamlanamadı.", "Service installation could not be completed.");
         Add("log.removed", "Servis ve servis dosyaları kaldırıldı.", "The service and its files were removed.");
         Add("log.testhead", "Bağlantı testi (servis: {0})", "Connection test (service: {0})");
@@ -487,9 +502,9 @@ static class Loc
             "Aktivieren Sie DNS-over-HTTPS in den Einstellungen und versuchen Sie es erneut mit „Dienst installieren / reparieren“.",
             "Activez le DNS-over-HTTPS dans les paramètres, puis réessayez avec « Installer / réparer le service ».",
             "Activa DNS-over-HTTPS en los ajustes y vuelve a intentarlo con «Instalar / reparar el servicio».");
-        AddInternational("log.done", "Der Dienst läuft auch nach dem Schließen der App weiter.",
-            "Le service est en cours d’exécution et continue de fonctionner après la fermeture de l’application.",
-            "El servicio está en ejecución y seguirá funcionando al cerrar la aplicación.");
+        AddInternational("log.done", "Der Dienst läuft. Er startet mit Windows und bleibt nach dem Schließen der App aktiv.",
+            "Le service est en cours d’exécution. Il démarre avec Windows et reste actif après la fermeture de l’application.",
+            "El servicio está en ejecución. Se inicia con Windows y sigue activo al cerrar la aplicación.");
         AddInternational("log.failed", "Der Dienst konnte nicht installiert werden.", "Le service n’a pas pu être installé.", "No se pudo instalar el servicio.");
         AddInternational("log.removed", "Der Dienst und seine Dateien wurden entfernt.", "Le service et ses fichiers ont été supprimés.", "Se desinstaló el servicio y se eliminaron sus archivos.");
         AddInternational("log.testfail",

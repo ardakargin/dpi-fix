@@ -47,9 +47,9 @@ impl<'a> Packet<'a> {
                 if data.len() < IPV6_HDR {
                     return None;
                 }
-                let proto = data[6];
-                let (sp, dp) = ports(data, IPV6_HDR, proto)?;
-                Some(Packet { data, v6: true, ip_hdr_len: IPV6_HDR, proto, src_port: sp, dst_port: dp })
+                let (proto, ip_hdr_len) = ipv6_transport(data)?;
+                let (sp, dp) = ports(data, ip_hdr_len, proto)?;
+                Some(Packet { data, v6: true, ip_hdr_len, proto, src_port: sp, dst_port: dp })
             }
             _ => None,
         }
@@ -66,6 +66,10 @@ impl<'a> Packet<'a> {
         } else {
             usize::from(u16::from_be_bytes([self.data[2], self.data[3]])) == self.data.len()
         }
+    }
+
+    pub fn is_fragment(&self) -> bool {
+        !self.v6 && u16::from_be_bytes([self.data[6], self.data[7]]) & 0x3fff != 0
     }
 
     pub fn payload(&self) -> &[u8] {
@@ -110,6 +114,49 @@ impl<'a> Packet<'a> {
     pub fn set_tcp_seq(&mut self, seq: u32) {
         let o = self.ip_hdr_len + 4;
         self.data[o..o + 4].copy_from_slice(&seq.to_be_bytes());
+    }
+
+    pub fn set_tcp_flags(&mut self, flags: u8) {
+        self.data[self.ip_hdr_len + 13] = flags;
+    }
+
+    pub fn tcp_ack(&self) -> u32 {
+        let offset = self.ip_hdr_len + 8;
+        u32::from_be_bytes(self.data[offset..offset + 4].try_into().unwrap())
+    }
+
+    pub fn set_tcp_ack(&mut self, ack: u32) {
+        let offset = self.ip_hdr_len + 8;
+        self.data[offset..offset + 4].copy_from_slice(&ack.to_be_bytes());
+    }
+
+    pub fn tcp_window(&self) -> u16 {
+        let offset = self.ip_hdr_len + 14;
+        u16::from_be_bytes(self.data[offset..offset + 2].try_into().unwrap())
+    }
+
+    pub fn set_tcp_window(&mut self, window: u16) {
+        let offset = self.ip_hdr_len + 14;
+        self.data[offset..offset + 2].copy_from_slice(&window.to_be_bytes());
+    }
+
+    pub fn tcp_urgent(&self) -> u16 {
+        let offset = self.ip_hdr_len + 18;
+        u16::from_be_bytes(self.data[offset..offset + 2].try_into().unwrap())
+    }
+
+    pub fn set_tcp_urgent(&mut self, urgent: u16) {
+        let offset = self.ip_hdr_len + 18;
+        self.data[offset..offset + 2].copy_from_slice(&urgent.to_be_bytes());
+    }
+
+    pub fn tcp_options(&self) -> &[u8] {
+        &self.data[self.ip_hdr_len + TCP_HDR_MIN..self.payload_offset()]
+    }
+
+    pub fn tcp_options_mut(&mut self) -> &mut [u8] {
+        let end = self.payload_offset();
+        &mut self.data[self.ip_hdr_len + TCP_HDR_MIN..end]
     }
 
     /// Yükün ilk baytından sonuna kadar TCP SEQ'i ilerletir
@@ -182,11 +229,45 @@ impl<'a> Packet<'a> {
     }
 }
 
+fn ipv6_transport(data: &[u8]) -> Option<(u8, usize)> {
+    let mut next = data[6];
+    let mut offset = IPV6_HDR;
+    loop {
+        match next {
+            IPPROTO_TCP | IPPROTO_UDP => return Some((next, offset)),
+            // Hop-by-hop and destination options, or a routing header whose
+            // final destination is already the IPv6 destination address.
+            0 | 43 | 60 => {
+                let header = data.get(offset..offset + 8)?;
+                if next == 43 && header[3] != 0 {
+                    return None;
+                }
+                next = header[0];
+                offset += (usize::from(header[1]) + 1) * 8;
+            }
+            // Atomic IPv6 fragment. Non-atomic fragments have no complete TCP
+            // checksum to update. WinDivert normally delivers reassembled input.
+            44 => {
+                let header = data.get(offset..offset + 8)?;
+                if u16::from_be_bytes([header[2], header[3]]) != 0 {
+                    return None;
+                }
+                next = header[0];
+                offset += 8;
+            }
+            _ => return None,
+        }
+    }
+}
+
 fn ports(data: &[u8], ip_hdr_len: usize, proto: u8) -> Option<(u16, u16)> {
     if proto != IPPROTO_TCP && proto != IPPROTO_UDP {
         return None;
     }
     if data.len() < ip_hdr_len + if proto == IPPROTO_TCP { TCP_HDR_MIN } else { UDP_HDR } {
+        return None;
+    }
+    if proto == IPPROTO_TCP && data[ip_hdr_len + 12] >> 4 < 5 {
         return None;
     }
     if ip_hdr_len + transport_hdr_len(data, ip_hdr_len, proto) > data.len() {

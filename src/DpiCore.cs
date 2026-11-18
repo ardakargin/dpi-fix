@@ -33,7 +33,10 @@ static class Core
         Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "DpiFix");
     public static string Arch = Environment.Is64BitOperatingSystem ? "x86_64" : "x86";
 
-    public static string ServiceFilesDir { get { return Path.Combine(DataDir, "payload"); } }
+    public static string InstallDir = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "DpiFix");
+    public static string ServiceFilesDir { get { return Path.Combine(InstallDir, "payload"); } }
+    public static string LegacyServiceFilesDir { get { return Path.Combine(DataDir, "payload"); } }
     public static string PayloadDir { get { return Path.Combine(ServiceFilesDir, Arch); } }
     public static string ExePath { get { return Path.Combine(PayloadDir, "dpifix-engine.exe"); } }
     public static string BlacklistPath { get { return Path.Combine(DataDir, "blacklist.txt"); } }
@@ -41,7 +44,8 @@ static class Core
     public static string SettingsPath { get { return Path.Combine(DataDir, "settings.ini"); } }
     public static string DnsBackupPath { get { return Path.Combine(DataDir, "dns-backup.json"); } }
 
-    public static bool DohEnabled = false;
+    public static bool? DohPreference;
+    public static bool DohEnabled { get { return DohPreference == true; } }
     public static bool AutoReprobe = false;
     public static bool VerifyPayload = true;
     public static string Lang = Loc.SystemLanguage();
@@ -77,7 +81,7 @@ static class Core
                 if (p < 0) continue;
                 string k = ls[i].Substring(0, p).Trim();
                 bool v = ls[i].Substring(p + 1).Trim() == "1";
-                if (k == "doh") DohEnabled = v;
+                if (k == "doh") DohPreference = v;
                 else if (k == "autoreprobe") AutoReprobe = v;
                 else if (k == "verify") VerifyPayload = v;
                 else if (k == "lang")
@@ -90,18 +94,25 @@ static class Core
         catch { }
     }
 
-    public static void SaveSettings()
+    public static void SaveSettings(bool required = false)
     {
         try
         {
             Directory.CreateDirectory(DataDir);
             File.WriteAllText(SettingsPath,
-                "doh=" + (DohEnabled ? "1" : "0") + "\r\n" +
+                (DohPreference.HasValue ? "doh=" + (DohEnabled ? "1" : "0") + "\r\n" : "") +
                 "autoreprobe=" + (AutoReprobe ? "1" : "0") + "\r\n" +
                 "verify=" + (VerifyPayload ? "1" : "0") + "\r\n" +
                 "lang=" + Lang + "\r\n", Encoding.UTF8);
         }
-        catch { }
+        catch { if (required) throw; }
+    }
+
+    public static bool? DohOverride(string[] args)
+    {
+        if (Array.IndexOf(args, "--no-doh") >= 0) return false;
+        if (Array.IndexOf(args, "--try-doh") >= 0) return true;
+        return null;
     }
 
     // Servise yazılmış komut satırının argüman kısmı (arayüzde gösterilir)
@@ -167,6 +178,9 @@ static class Core
     public static string ExtractPayload()
     {
         Assembly asm = Assembly.GetExecutingAssembly();
+        CheckLocalDirectory(InstallDir);
+        CheckLocalDirectory(ServiceFilesDir);
+        CheckLocalDirectory(PayloadDir);
         Directory.CreateDirectory(PayloadDir);
         string warn = null;
         for (int i = 0; i < AllResources.Length; i++)
@@ -314,6 +328,7 @@ static class Core
     {
         lock (Gate)
         {
+            SetServiceOnDemand();
             StopService();
             if (!RestoreDns()) throw new InvalidOperationException("DNS restoration failed. Backup retained.");
         }
@@ -427,8 +442,9 @@ static class Core
         string domains = "--domains " + QuoteArgument(BlacklistPath);
         return new Profile[] {
             new Profile("HTTPS", domains),
-            new Profile("HTTPS + HTTP", domains + " --http"),
-            new Profile(Loc.T("profile.reordered"), domains + " --tls-reorder")
+            new Profile(Loc.T("profile.records"), domains + " --tls-record-split"),
+            new Profile(Loc.T("profile.reordered"), domains + " --tls-reorder"),
+            new Profile("HTTPS + HTTP", domains + " --http")
         };
     }
 
@@ -451,6 +467,19 @@ static class Core
         public ProbeTarget NewAttempt() { return new ProbeTarget(Host, Control, Listed); }
     }
 
+    static readonly string[][] RepresentativeSites = {
+        new[] { "discord.com", "discordapp.com", "discordapp.net", "discord.gg", "discord.media" },
+        new[] { "www.instagram.com", "instagram.com", "cdninstagram.com" },
+        new[] { "www.roblox.com", "roblox.com", "rbxcdn.com" },
+        new[] { "x.com", "twitter.com", "twimg.com", "t.co" }
+    };
+
+    static bool CoversHost(string domain, string host)
+    {
+        return host.Equals(domain, StringComparison.OrdinalIgnoreCase) ||
+            host.EndsWith("." + domain, StringComparison.OrdinalIgnoreCase);
+    }
+
     static ProbeTarget[] Targets(string blacklist)
     {
         List<ProbeTarget> list = new List<ProbeTarget>();
@@ -460,7 +489,7 @@ static class Core
         list.Add(new ProbeTarget("www.tiktok.com", true, false));
 
         string[] bl = blacklist.TrimStart('\uFEFF').Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-        int added = 0;
+        List<string> domains = new List<string>();
         for (int i = 0; i < bl.Length; i++)
         {
             string h = bl[i].Split('#')[0].Trim();
@@ -468,11 +497,26 @@ static class Core
             h = Regex.Replace(h, ":[0-9]+\\z", "");
             h = h.TrimEnd('.');
             if (Uri.CheckHostName(h) != UriHostNameType.Dns || h.IndexOf('.') < 0) continue;
+            domains.Add(h);
             foreach (ProbeTarget target in list)
-                if (target.Control && (string.Equals(target.Host, h, StringComparison.OrdinalIgnoreCase) ||
-                    target.Host.EndsWith("." + h, StringComparison.OrdinalIgnoreCase))) target.Listed = true;
-            if (added == 6 || list.Exists(target => string.Equals(target.Host, h, StringComparison.OrdinalIgnoreCase)))
-                continue;
+                if (CoversHost(h, target.Host)) target.Listed = true;
+        }
+
+        const int maxListedProbes = 6;
+        int added = 0;
+        var represented = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string[] sites in RepresentativeSites)
+        {
+            string primary = sites[0];
+            if (!domains.Exists(domain => CoversHost(domain, primary))) continue;
+            list.Add(new ProbeTarget(primary, false, true));
+            represented.UnionWith(sites);
+            added++;
+        }
+        foreach (string h in domains)
+        {
+            if (added >= maxListedProbes) break;
+            if (represented.Contains(h) || list.Exists(target => target.Host.Equals(h, StringComparison.OrdinalIgnoreCase))) continue;
             list.Add(new ProbeTarget(h, false, true));
             added++;
         }
@@ -514,6 +558,12 @@ static class Core
     static bool AllAccessible(ProbeTarget[] targets)
     {
         return Array.TrueForAll(targets, target => target.Accessible);
+    }
+
+    static bool ListedSitesResponded(ProbeTarget[] targets)
+    {
+        return ControlResponded(targets) && Array.Exists(targets, target => target.Listed) &&
+            Array.TrueForAll(targets, target => !target.Listed || target.Responded);
     }
 
     static void ProbeHttps(ProbeTarget target, int ms)
@@ -627,12 +677,13 @@ static class Core
         return gain;
     }
 
-    static string SelectProfile(ProbeTarget[] baseline)
+    static string SelectProfile(ProbeTarget[] baseline, bool acceptPreservation)
     {
         Profile[] ps = Profiles();
         string best = null;
         int bestGain = 0;
-        for (int i = 0; i < ps.Length; i++)
+        int candidateCount = acceptPreservation ? 1 : ps.Length;
+        for (int i = 0; i < candidateCount; i++)
         {
             Profile pr = ps[i];
             Log(Loc.T("log.trying", pr.Label));
@@ -663,6 +714,7 @@ static class Core
                     continue;
                 }
                 int gain = AccessGain(baseline, t);
+                if (acceptPreservation) return pr.Args;
                 if (gain > bestGain) { best = pr.Args; bestGain = gain; }
             }
             catch (Exception ex) { Log("   hata: " + ex.Message); }
@@ -686,7 +738,15 @@ static class Core
                Environment.GetEnvironmentVariable("PROCESSOR_ARCHITEW6432") == "AMD64";
     }
 
-    public static bool Install(bool tryDohOnce = false)
+    static void SetServiceOnDemand()
+    {
+        const int serviceDoesNotExist = 1060;
+        string output;
+        int result = Sc("config " + SvcName + " start= demand", out output);
+        if (result != 0 && result != serviceDoesNotExist) throw new InvalidOperationException(output);
+    }
+
+    public static bool Install(bool? tryDoh = null)
     {
         lock (Gate)
         {
@@ -695,16 +755,15 @@ static class Core
             bool stopped = false;
             bool created = false;
             bool noVerifiedProfile = false;
+            bool improved = false;
+            bool allowDoh = tryDoh ?? DohEnabled;
             try
             {
                 if (!SupportedWindows())
                     throw new PlatformNotSupportedException("DPI Fix requires x64 Windows.");
                 Log(Loc.T("log.step2"));
                 // Keep the previous profile from starting at boot while it is being revalidated.
-                const int serviceDoesNotExist = 1060;
-                int configResult = Sc("config " + SvcName + " start= demand", out o);
-                if (configResult != 0 && configResult != serviceDoesNotExist)
-                    throw new InvalidOperationException(o);
+                SetServiceOnDemand();
                 StopService();
                 stopped = true;
                 if (!RestoreDns()) return false;
@@ -718,17 +777,18 @@ static class Core
                 if (warn != null) { Log(warn); return false; }
                 SaveSettings();
 
-                string args = SelectProfile(baseline);
-                if (args == null && (DohEnabled || tryDohOnce))
+                bool acceptPreservation = ListedSitesResponded(baseline);
+                string args = SelectProfile(baseline, acceptPreservation);
+                if (args == null && !acceptPreservation && allowDoh)
                 {
-                    if (ApplyDoh()) args = SelectProfile(baseline);
+                    if (ApplyDoh()) args = SelectProfile(baseline, false);
                     else if (!RestoreDns()) return false;
                 }
                 if (args == null)
                 {
                     noVerifiedProfile = true;
                     Log(Loc.T("log.none"));
-                    if (!DohEnabled && !tryDohOnce && Array.Exists(baseline, t => t.Listed && (t.Failure == "dns" || t.Failure == "cert") && t.Status == 0))
+                    if (!allowDoh && Array.Exists(baseline, t => t.Listed && (t.Failure == "dns" || t.Failure == "cert") && t.Status == 0))
                         Log(Loc.T("log.trydoh"));
                     return false;
                 }
@@ -747,7 +807,8 @@ static class Core
                     service.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(12));
                 ProbeTarget[] running = ProbeAll(baseline);
                 LogProbe(running);
-                if (PreservesConnectivity(baseline, running) && AccessGain(baseline, running) > 0 && State() == "running")
+                improved = AccessGain(baseline, running) > 0;
+                if (PreservesConnectivity(baseline, running) && (improved || acceptPreservation) && State() == "running")
                 {
                     if (Sc("config " + SvcName + " start= auto", out o) != 0)
                         throw new InvalidOperationException(o);
@@ -777,7 +838,11 @@ static class Core
                     catch (Exception ex) { Log(ex.Message); }
                     finally { dnsRestored = RestoreDns(); }
                 }
-                if (ok) Log(Loc.T("log.done"));
+                if (ok)
+                {
+                    Log(Loc.T(improved ? "log.doneImproved" : "log.donePreserved"));
+                    Log(Loc.T("log.done"));
+                }
                 else if (!noVerifiedProfile || !dnsRestored) Log(Loc.T("log.failed"));
             }
             return ok;
@@ -797,32 +862,37 @@ static class Core
     {
         lock (Gate)
         {
-            CheckRemovalDirectory(DataDir);
-            if (keepAppData) CheckRemovalDirectory(ServiceFilesDir);
+            CheckLocalDirectory(DataDir);
+            CheckLocalDirectory(InstallDir);
+            CheckLocalDirectory(ServiceFilesDir);
+            if (keepAppData) CheckLocalDirectory(LegacyServiceFilesDir);
             string output;
+            SetServiceOnDemand();
             StopService();
             if (!RestoreDns()) throw new InvalidOperationException("DNS restoration failed. Backup retained.");
             if (State() != "absent" && Sc("delete " + SvcName, out output) != 0)
                 throw new InvalidOperationException(output);
             RemoveOwnedDriver();
-            string directory = keepAppData ? ServiceFilesDir : DataDir;
-            return Directory.Exists(directory) && RemoveDataDirectory(directory);
+            bool delayed = Directory.Exists(ServiceFilesDir) && RemoveDataDirectory(ServiceFilesDir);
+            string directory = keepAppData ? LegacyServiceFilesDir : DataDir;
+            if (Directory.Exists(directory)) delayed |= RemoveDataDirectory(directory);
+            return delayed;
         }
     }
 
-    static void CheckRemovalDirectory(string path)
+    static void CheckLocalDirectory(string path)
     {
         FileAttributes attributes;
         try { attributes = File.GetAttributes(path); }
         catch (FileNotFoundException) { return; }
         catch (DirectoryNotFoundException) { return; }
         if ((attributes & FileAttributes.ReparsePoint) != 0)
-            throw new IOException("Refusing to remove redirected DPI Fix directory: " + path);
+            throw new IOException("Unexpected redirected DPI Fix directory: " + path);
     }
 
     static bool RemoveDataDirectory(string path)
     {
-        CheckRemovalDirectory(path);
+        CheckLocalDirectory(path);
         bool delayed = false;
         foreach (string folder in Directory.GetDirectories(path))
             delayed |= RemoveDataDirectory(folder);
@@ -862,7 +932,9 @@ static class Core
             string path = Environment.ExpandEnvironmentVariables(Convert.ToString(key.GetValue("ImagePath"))).Trim('"');
             if (path.StartsWith(@"\??\", StringComparison.Ordinal)) path = path.Substring(4);
             string owned = Path.Combine(PayloadDir, "WinDivert64.sys");
-            if (!String.Equals(path, owned, StringComparison.OrdinalIgnoreCase)) return;
+            string legacy = Path.Combine(LegacyServiceFilesDir, Arch, "WinDivert64.sys");
+            if (!String.Equals(path, owned, StringComparison.OrdinalIgnoreCase) &&
+                !String.Equals(path, legacy, StringComparison.OrdinalIgnoreCase)) return;
         }
         using (ServiceController driver = new ServiceController(name))
         {
@@ -958,10 +1030,12 @@ static class Core
         sb.AppendLine("payload=" + (File.Exists(ExePath) ? "var" : "yok"));
         sb.AppendLine("blacklist=" + (File.Exists(BlacklistPath) ? "var" : "yok"));
         sb.AppendLine("svc=" + State() + " (" + StateText() + ")");
-        string qc;
-        Sc("qc " + SvcName, out qc);
-        Match bm = Regex.Match(qc, "BINARY_PATH_NAME\\s*:\\s*(.+)");
-        sb.AppendLine("svcArgs=" + (bm.Success ? bm.Groups[1].Value.Trim() : "-"));
+        using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+            @"SYSTEM\CurrentControlSet\Services\" + SvcName))
+        {
+            sb.AppendLine("svcArgs=" + (key == null ? "-" : key.GetValue("ImagePath", "-")));
+            sb.AppendLine("svcAutoStart=" + (key != null && Convert.ToInt32(key.GetValue("Start", -1)) == 2));
+        }
         sb.AppendLine("doh=" + DohEnabled + " autoreprobe=" + AutoReprobe + " verify=" + VerifyPayload);
         ProbeTarget[] t = ProbeAll();
         for (int i = 0; i < t.Length; i++)
