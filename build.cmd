@@ -32,27 +32,37 @@ SET OUT=dist
 IF NOT EXIST "%OUT%" MKDIR "%OUT%"
 
 SET REF=/reference:System.dll,System.Drawing.dll,System.Windows.Forms.dll,System.ServiceProcess.dll
-SET SRC=src\ProductInfo.cs src\Ui.cs src\EngineInfo.g.cs src\DpiCore.cs src\DpiFix.cs
+SET COMMON_SRC=src\ProductInfo.cs src\Ui.cs src\EngineInfo.g.cs src\DpiCore.cs
+SET APP_SRC=%COMMON_SRC% src\DpiFix.cs src\BrowserSession.cs
+SET APP_REF=/reference:Microsoft.CSharp.dll
 SET RES=/resource:payload\x86_64\WinDivert.dll,pl_x86_64_WinDivert_dll ^
  /resource:payload\x86_64\WinDivert64.sys,pl_x86_64_WinDivert64_sys ^
  /resource:payload\engine\dpifix-engine.exe,pl_engine
 
-REM ---------- 1) DpiFix.exe : motorlar gomulu tek dosya uygulama ----------
+REM ---------- 1) BrowserMode.exe : kullanici oturumunda calisan tarayici yardimcisi ----------
+"%CSC%" /nologo /target:winexe /define:BROWSER_MODE /main:BrowserProgram /codepage:65001 /optimize+ /out:%OUT%\BrowserMode.exe ^
+  /win32manifest:src\BrowserMode.manifest !ICON_RES! !BRAND_RES! %REF% /reference:System.Runtime.Serialization.dll ^
+  src\Ui.cs src\ProductInfo.cs src\BrowserSession.cs src\BrowserRelay.cs
+IF ERRORLEVEL 1 (echo [HATA] BrowserMode.exe derlenemedi. & POPD & EXIT /B 1)
+echo [OK] %OUT%\BrowserMode.exe
+
+REM ---------- 2) DpiFix.exe : motorlar gomulu uygulama ----------
 "%CSC%" /nologo /target:winexe /codepage:65001 /optimize+ /out:%OUT%\DpiFix.exe ^
-  /win32manifest:src\app.manifest !ICON_RES! !BRAND_RES! %REF% %RES% %SRC%
+  /win32manifest:src\app.manifest !ICON_RES! !BRAND_RES! %REF% %APP_REF% %RES% %APP_SRC%
 IF ERRORLEVEL 1 (echo [HATA] DpiFix.exe derlenemedi. & POPD & EXIT /B 1)
 echo [OK] %OUT%\DpiFix.exe
 
-REM ---------- 2) selftest.exe : konsol teshis (UAC istemez) ----------
-"%CSC%" /nologo /target:exe /define:SELFTEST /codepage:65001 /out:%OUT%\selftest.exe !BRAND_RES! %REF% %RES% %SRC%
+REM ---------- 3) selftest.exe : konsol teshis (UAC istemez) ----------
+"%CSC%" /nologo /target:exe /define:SELFTEST /codepage:65001 /out:%OUT%\selftest.exe !BRAND_RES! %REF% %APP_REF% %RES% %APP_SRC%
 IF ERRORLEVEL 1 (echo [HATA] selftest.exe derlenemedi. & POPD & EXIT /B 1)
 echo [OK] %OUT%\selftest.exe
 
-REM ---------- 3) Setup.exe : kurulum dosyasi (DpiFix.exe gomulu) ----------
+REM ---------- 4) Setup.exe : uygulama ve tarayici yardimcisi gomulu kurulum ----------
 "%CSC%" /nologo /target:winexe /codepage:65001 /optimize+ /out:%OUT%\Setup.exe ^
   /win32manifest:src\app.manifest !ICON_RES! %REF% ^
   /resource:%OUT%\DpiFix.exe,payload_app ^
-  src\ProductInfo.cs src\Ui.cs src\EngineInfo.g.cs src\DpiCore.cs src\Setup.cs
+  /resource:%OUT%\BrowserMode.exe,payload_browser ^
+  %COMMON_SRC% src\Setup.cs
 IF ERRORLEVEL 1 (echo [HATA] Setup.exe derlenemedi. & POPD & EXIT /B 1)
 echo [OK] %OUT%\Setup.exe
 

@@ -58,7 +58,8 @@ class MainForm : Form
     Label secActions, secSettings, secLog, lblAppVersion, lblEngine, lblProfile, lblSites;
     Label operationStatus;
     Label title, sub, hint1, hint2;
-    FlatButton btnInstall, btnStop, btnRemove, btnTest, btnList, btnUpdate, btnLog, btnLang;
+    FlatButton btnInstall, btnStop, btnRemove, btnTest, btnList, btnUpdate, btnLog, btnBrowser, btnLang;
+    readonly ToolTip browserTip = new ToolTip { AutoPopDelay = 15000 };
     FlatCheck chkDoh, chkWatch, chkVerify;
     System.Windows.Forms.Timer timer;
     bool busy = false;
@@ -156,14 +157,17 @@ class MainForm : Form
         btnRemove = MkBtn(512, 222, 244, 40, false);
         btnRemove.Click += ClickRemove;
 
-        btnTest = MkBtn(24, 270, 176, 34, false);
+        btnTest = MkBtn(24, 270, 137, 34, false);
         btnTest.Click += ClickTest;
-        btnList = MkBtn(210, 270, 172, 34, false);
+        btnList = MkBtn(171, 270, 137, 34, false);
         btnList.Click += ClickList;
-        btnUpdate = MkBtn(392, 270, 174, 34, false);
+        btnUpdate = MkBtn(318, 270, 137, 34, false);
         btnUpdate.Click += ClickUpdate;
-        btnLog = MkBtn(576, 270, 180, 34, false);
+        btnLog = MkBtn(465, 270, 134, 34, false);
         btnLog.Click += ClickOpenLog;
+        btnBrowser = MkBtn(609, 270, 147, 34, false);
+        btnBrowser.Click += ClickBrowser;
+        Disposed += delegate { browserTip.Dispose(); };
 
         // ---- ayarlar ----
         RoundedPanel settings = new RoundedPanel();
@@ -319,6 +323,9 @@ class MainForm : Form
         btnList.Text = Loc.T("btn.list");
         btnUpdate.Text = Loc.T("btn.update");
         btnLog.Text = Loc.T("btn.log");
+        btnBrowser.Text = Loc.T("btn.browser");
+        btnBrowser.AccessibleDescription = Loc.T("browser.help");
+        browserTip.SetToolTip(btnBrowser, btnBrowser.AccessibleDescription);
         btnLang.Text = Loc.Names[Array.IndexOf(Loc.Codes, Loc.Lang)] + "  ▾";
         btnLang.AccessibleName = Loc.T("btn.lang");
 
@@ -443,6 +450,19 @@ class MainForm : Form
 
     void ClickUpdate(object s, EventArgs e) { RunAsync("run.update", delegate { Core.CheckUpdate(); }); }
 
+    void ClickBrowser(object s, EventArgs e)
+    {
+        try
+        {
+            BrowserSession.LaunchUnelevated(Path.Combine(Core.AppDir, BrowserSession.HelperName), Loc.Lang);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, Loc.T("browser.error", ex.Message), btnBrowser.Text,
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
     void ClickList(object s, EventArgs e)
     {
         try
@@ -519,8 +539,7 @@ static class Program
 
             if (cmd == "--install")
             {
-                if (Array.IndexOf(args, "--try-doh") >= 0) Core.DohEnabled = true;
-                bool ok = Core.Install();
+                bool ok = Core.Install(Array.IndexOf(args, "--try-doh") >= 0);
                 Environment.Exit(ok ? 0 : 1);
             }
             else if (cmd == "--uninstall")

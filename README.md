@@ -20,6 +20,7 @@ Derin Paket İncelemesi (DPI) ve DNS kaynaklı erişim sorunları için açık k
 
 - **DPI Fix Engine:** Windows servisinde çalışan, harici crate kullanmayan yerel Rust motoru.
 - **Alan adı kapsamı:** Motor yalnızca listedeki alan adları için tanıyabildiği HTTP veya TLS başlangıç paketlerini işler.
+- **Tarayıcı modu:** Ana pencereden Discord’u ayrı bir Edge veya Chrome profiliyle açabilirsiniz. Bu oturumda Discord alan adları için yerel bağlantı yardımcısı ve Cloudflare DNS-over-HTTPS kullanılır. Diğer siteler doğrudan açılır. Sertifikayı tarayıcı doğrular. Windows’un DNS ve proxy ayarları değişmez. Oturum bilgileri Windows kullanıcısına ait ayrı tarayıcı profilinde saklanır. Taşınabilir kullanım için aynı sürümün `BrowserMode.exe` ve `DpiFix.exe` dosyalarını aynı klasöre koyun.
 - **Kalıcı Windows Servisi:** Doğrulanan profil Windows açılışında otomatik çalışır. Beklenmeyen kapanışlarda Windows servis kurtarma ayarları devreye girer.
 - **DNS-over-HTTPS (DoH):** Kurulumda ve Ayarlar’da isteğe bağlıdır. Gerektiğinde Cloudflare DoH, etkin IPv4 bağlantısında denenir. Önceki DNS ve DoH ayarları deneme başarısız olduğunda, servis durdurulurken veya kaldırılırken geri yüklenir.
 - **Bağlantı kontrolü:** Örnek sitelerde HTTPS yanıtlarını motor kapalıyken, profil denemesinde ve servis çalışırken karşılaştırır. Çalışan bir site erişimini kaybederse veya hiçbir hedefte erişim kazanımı ölçülmezse servis otomatik başlangıca alınmaz. Kontrol listedeki ilk altı ayrı hedefi ve dört kontrol sitesini kapsar. TikTok ana sayfası bu kontrollerden biridir. Kullanıcı listeye eklediğinde TikTok da motorun kapsamına girer.
@@ -47,7 +48,7 @@ Derin Paket İncelemesi (DPI) ve DNS kaynaklı erişim sorunları için açık k
 
 Windows paketi DPI Fix Engine, WinDivert DLL ve WinDivert sürücüsünü içerir.
 Motor tek süreçte çalışır. TCP paketleri için iki tamponu yeniden kullanır ve bağlantı başına önbellek tutmaz.
-HTTP ve TLS başlangıçları alan adı listesine göre değerlendirilir. QUIC, ECH ve parçalı TLS el sıkışmaları bu sürümün kapsamı dışındadır.
+Windows servisi, listedeki alan adları için TCP üzerinden HTTP ve TLS bağlantılarını işler. Alternatif HTTPS profili, alan adını içeren iki TCP parçasının gönderim sırasını değiştirir. İlk TCP paketinde tam alan adı görünüyorsa bu profil daha uzun ClientHello iletilerini de işleyebilir. Servis QUIC veya gizlenmiş alan adları (ECH) için profil uygulamaz.
 
 Rust motorunu test etmek için:
 ```bash
@@ -87,6 +88,7 @@ dpi-fix\
   dist\                 DERLEME ÇIKTILARI (Release dosyaları):
     Setup.exe           Kurulum aracı (DpiFix.exe içinde gömülü)
     DpiFix.exe          Uygulama (DPI Fix Engine gömülü)
+    BrowserMode.exe     Ayrı tarayıcı oturumunda çalışan bağlantı yardımcısı
     selftest.exe        Teşhis aracı (yönetici yetkisi istemez)
 ```
 

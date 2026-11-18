@@ -34,7 +34,7 @@ fn main() -> ExitCode {
     }
 
     if argv.iter().any(|arg| arg == "--help" || arg == "-h") {
-        println!("dpifix-engine --domains FILE [--http]");
+        println!("dpifix-engine --domains FILE [--http] [--tls-reorder]");
         return ExitCode::SUCCESS;
     }
     let cfg = match Config::parse(argv) {

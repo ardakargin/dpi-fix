@@ -2,5 +2,10 @@ using System.Reflection;
 
 [assembly: AssemblyProduct("DPI Fix")]
 [assembly: AssemblyCompany("DPI Fix")]
-[assembly: AssemblyVersion(Core.AppVersion + ".0")]
-[assembly: AssemblyFileVersion(Core.AppVersion + ".0")]
+[assembly: AssemblyVersion(ProductInfo.Version + ".0")]
+[assembly: AssemblyFileVersion(ProductInfo.Version + ".0")]
+
+static class ProductInfo
+{
+    public const string Version = "2.3.5";
+}

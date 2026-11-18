@@ -4,12 +4,14 @@ use std::path::PathBuf;
 pub struct Config {
     pub domains: PathBuf,
     pub http: bool,
+    pub tls_reorder: bool,
 }
 
 impl Config {
     pub fn parse(args: Vec<String>) -> Result<Self, String> {
         let mut domains = None;
         let mut http = false;
+        let mut tls_reorder = false;
         let mut args = args.into_iter();
         while let Some(arg) = args.next() {
             match arg.as_str() {
@@ -19,10 +21,11 @@ impl Config {
                     domains = Some(PathBuf::from(value));
                 }
                 "--http" => http = true,
+                "--tls-reorder" => tls_reorder = true,
                 _ => return Err(format!("Unknown or duplicate option: {arg}")),
             }
         }
-        Ok(Self { domains: domains.ok_or("--domains is required")?, http })
+        Ok(Self { domains: domains.ok_or("--domains is required")?, http, tls_reorder })
     }
 }
 
@@ -36,6 +39,15 @@ mod tests {
         let config = Config::parse(args).unwrap();
         assert_eq!(config.domains, PathBuf::from("site list.txt"));
         assert!(config.http);
+        assert!(!config.tls_reorder);
+    }
+
+    #[test]
+    fn tls_reordering_is_opt_in_and_does_not_enable_http() {
+        let args = ["--domains", "sites.txt", "--tls-reorder"].map(String::from).to_vec();
+        let config = Config::parse(args).unwrap();
+        assert!(config.tls_reorder);
+        assert!(!config.http);
     }
 
     #[test]

@@ -12,14 +12,14 @@ const TLS_HANDSHAKE: u8 = 0x16;
 const TLS_CLIENT_HELLO: u8 = 0x01;
 const EXT_SERVER_NAME: u16 = 0x0000;
 
-/// TLS ClientHello ise SNI bilgisini döndürür.
-pub fn tls_sni(payload: &[u8]) -> Option<Sni<'_>> {
+/// In partial mode, the SNI extension must still fit entirely in the current TCP payload.
+pub fn tls_sni(payload: &[u8], allow_partial_record: bool) -> Option<Sni<'_>> {
     if payload.len() < 6 || payload[0] != TLS_HANDSHAKE {
         return None;
     }
     let record_len = be16(payload, 3)? as usize;
     let rec_end = 5 + record_len;
-    if record_len < 4 || rec_end > payload.len() {
+    if record_len < 4 || (!allow_partial_record && rec_end > payload.len()) {
         return None;
     }
     // Handshake başlığı
@@ -31,29 +31,30 @@ pub fn tls_sni(payload: &[u8]) -> Option<Sni<'_>> {
     if hs_end > rec_end {
         return None;
     }
+    let visible_end = hs_end.min(payload.len());
 
     let mut p = 9usize;
     // client_version(2) + random(32)
     p = p.checked_add(34)?;
-    if p + 1 > hs_end {
+    if p + 1 > visible_end {
         return None;
     }
     // session_id
     let sid_len = payload[p] as usize;
     p = p.checked_add(1 + sid_len)?;
-    if p + 2 > hs_end {
+    if p + 2 > visible_end {
         return None;
     }
     // cipher_suites
     let cs_len = be16(payload, p)? as usize;
     p = p.checked_add(2 + cs_len)?;
-    if p + 1 > hs_end {
+    if p + 1 > visible_end {
         return None;
     }
     // compression_methods
     let comp_len = payload[p] as usize;
     p = p.checked_add(1 + comp_len)?;
-    if p + 2 > hs_end {
+    if p + 2 > visible_end {
         return None;
     }
     // extensions
@@ -64,11 +65,11 @@ pub fn tls_sni(payload: &[u8]) -> Option<Sni<'_>> {
         return None;
     }
 
-    while p + 4 <= ext_end {
+    while p + 4 <= visible_end {
         let etype = be16(payload, p)?;
         let elen = be16(payload, p + 2)? as usize;
         let edata = p + 4;
-        if edata + elen > ext_end {
+        if edata + elen > visible_end {
             break;
         }
         if etype == EXT_SERVER_NAME {
@@ -148,6 +149,10 @@ pub(crate) mod tests {
 
     /// Gerçek bir ClientHello'yu taklit eden minimal kayıt üretir
     pub(crate) fn client_hello(host: &str) -> Vec<u8> {
+        client_hello_with_padding(host, 0)
+    }
+
+    pub(crate) fn client_hello_with_padding(host: &str, padding_len: u16) -> Vec<u8> {
         let mut ext = Vec::new();
         // server_name uzantısı
         let mut sni = Vec::new();
@@ -160,6 +165,11 @@ pub(crate) mod tests {
         ext.extend(EXT_SERVER_NAME.to_be_bytes());
         ext.extend((sni_ext.len() as u16).to_be_bytes());
         ext.extend(&sni_ext);
+        if padding_len > 0 {
+            ext.extend(21u16.to_be_bytes()); // padding extension
+            ext.extend(padding_len.to_be_bytes());
+            ext.resize(ext.len() + usize::from(padding_len), 0);
+        }
 
         let mut body = Vec::new();
         body.extend([0x03, 0x03]); // client version
@@ -189,7 +199,7 @@ pub(crate) mod tests {
     #[test]
     fn extracts_sni() {
         let pkt = client_hello("discord.com");
-        let sni = tls_sni(&pkt).expect("SNI bulunamadı");
+        let sni = tls_sni(&pkt, false).expect("SNI bulunamadı");
         assert_eq!(sni.host, "discord.com");
         // ofset gerçekten host adını gösteriyor mu?
         assert_eq!(&pkt[sni.offset..sni.offset + sni.len], b"discord.com");
@@ -198,16 +208,16 @@ pub(crate) mod tests {
     #[test]
     fn sni_offset_points_before_payload_end() {
         let pkt = client_hello("www.instagram.com");
-        let sni = tls_sni(&pkt).unwrap();
+        let sni = tls_sni(&pkt, false).unwrap();
         assert!(sni.offset > 43, "ofset handshake başlığından sonra olmalı");
         assert!(sni.offset + sni.len <= pkt.len());
     }
 
     #[test]
     fn rejects_non_tls() {
-        assert!(tls_sni(b"GET / HTTP/1.1\r\n").is_none());
-        assert!(tls_sni(&[]).is_none());
-        assert!(tls_sni(&[0x16, 0x03, 0x01, 0x00, 0x05, 0x01]).is_none());
+        assert!(tls_sni(b"GET / HTTP/1.1\r\n", false).is_none());
+        assert!(tls_sni(&[], false).is_none());
+        assert!(tls_sni(&[0x16, 0x03, 0x01, 0x00, 0x05, 0x01], false).is_none());
     }
 
     #[test]
@@ -215,7 +225,20 @@ pub(crate) mod tests {
         let mut hello = client_hello("example.com");
         let length = u16::from_be_bytes([hello[3], hello[4]]) + 1;
         hello[3..5].copy_from_slice(&length.to_be_bytes());
-        assert!(tls_sni(&hello).is_none());
+        assert!(tls_sni(&hello, false).is_none());
+    }
+
+    #[test]
+    fn partial_record_requires_the_complete_sni_extension() {
+        let hello = client_hello_with_padding("example.com", 1600);
+        let sni = tls_sni(&hello, false).unwrap();
+        let sni_end = sni.offset + sni.len;
+        for length in 0..sni_end {
+            assert!(tls_sni(&hello[..length], true).is_none(), "prefix length {length}");
+        }
+        let visible_hello = &hello[..sni_end];
+        assert!(tls_sni(visible_hello, false).is_none());
+        assert_eq!(tls_sni(visible_hello, true).unwrap().host, "example.com");
     }
 
     #[test]

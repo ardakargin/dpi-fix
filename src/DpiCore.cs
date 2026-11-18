@@ -24,7 +24,7 @@ static class Core
     public const string SvcDisplay = "DPI Fix";
     public const string SvcDesc = "DPI Fix native engine";
     public const string LegacySvc = "GoodbyeDPI";
-    public const string AppVersion = "2.3.4";
+    public const string AppVersion = ProductInfo.Version;
     public const string EngineVersion = EngineInfo.Version;
     public const string ReleasesApi = "https://api.github.com/repos/ardakargin/dpi-fix/releases/latest";
 
@@ -109,16 +109,16 @@ static class Core
     {
         try
         {
-            string o;
-            Sc("qc " + SvcName, out o);
-            Match m = Regex.Match(o, "BINARY_PATH_NAME\\s*:\\s*(.+)");
-            if (!m.Success) return "-";
-            string line = m.Groups[1].Value.Trim();
-            int q = line.IndexOf("\" ");
-            string args = q >= 0 ? line.Substring(q + 2) : line;
-            args = args.Replace(BlacklistPath, "blacklist.txt");
-            if (args.Length > 28) args = args.Substring(0, 26) + "..";
-            return args.Length == 0 ? "-" : args;
+            using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                @"SYSTEM\CurrentControlSet\Services\" + SvcName))
+            {
+                if (key == null) return "-";
+                string command = Convert.ToString(key.GetValue("ImagePath")).TrimEnd();
+                foreach (Profile profile in Profiles())
+                    if (command.EndsWith(" --service " + profile.Args, StringComparison.OrdinalIgnoreCase))
+                        return profile.Label;
+                return "-";
+            }
         }
         catch { return "-"; }
     }
@@ -323,9 +323,8 @@ static class Core
 
     public static bool DohApplied = false;
 
-    public static bool ApplyDoh()
+    static bool ApplyDoh()
     {
-        if (!DohEnabled) { Log(Loc.T("log.dohoff")); return false; }
         string script =
             "$ErrorActionPreference='Stop'\r\n" +
             "$doh='https://cloudflare-dns.com/dns-query'\r\n" +
@@ -425,9 +424,11 @@ static class Core
 
     public static Profile[] Profiles()
     {
+        string domains = "--domains " + QuoteArgument(BlacklistPath);
         return new Profile[] {
-            new Profile("HTTPS", "--domains \"" + BlacklistPath + "\""),
-            new Profile("HTTPS + HTTP", "--domains \"" + BlacklistPath + "\" --http")
+            new Profile("HTTPS", domains),
+            new Profile("HTTPS + HTTP", domains + " --http"),
+            new Profile(Loc.T("profile.reordered"), domains + " --tls-reorder")
         };
     }
 
@@ -685,7 +686,7 @@ static class Core
                Environment.GetEnvironmentVariable("PROCESSOR_ARCHITEW6432") == "AMD64";
     }
 
-    public static bool Install()
+    public static bool Install(bool tryDohOnce = false)
     {
         lock (Gate)
         {
@@ -693,6 +694,7 @@ static class Core
             bool ok = false;
             bool stopped = false;
             bool created = false;
+            bool noVerifiedProfile = false;
             try
             {
                 if (!SupportedWindows())
@@ -717,15 +719,16 @@ static class Core
                 SaveSettings();
 
                 string args = SelectProfile(baseline);
-                if (args == null && DohEnabled)
+                if (args == null && (DohEnabled || tryDohOnce))
                 {
                     if (ApplyDoh()) args = SelectProfile(baseline);
                     else if (!RestoreDns()) return false;
                 }
                 if (args == null)
                 {
+                    noVerifiedProfile = true;
                     Log(Loc.T("log.none"));
-                    if (!DohEnabled && Array.Exists(baseline, t => t.Listed && (t.Failure == "dns" || t.Failure == "cert") && t.Status == 0))
+                    if (!DohEnabled && !tryDohOnce && Array.Exists(baseline, t => t.Listed && (t.Failure == "dns" || t.Failure == "cert") && t.Status == 0))
                         Log(Loc.T("log.trydoh"));
                     return false;
                 }
@@ -755,10 +758,12 @@ static class Core
                     catch (IOException ex) { Log(ex.Message); }
                     catch (UnauthorizedAccessException ex) { Log(ex.Message); }
                 }
+                else Log(Loc.T("log.serviceValidationFailed"));
             }
             catch (Exception ex) { Log(ex.Message); }
             finally
             {
+                bool dnsRestored = true;
                 if (!ok && stopped)
                 {
                     try
@@ -770,9 +775,10 @@ static class Core
                         }
                     }
                     catch (Exception ex) { Log(ex.Message); }
-                    finally { RestoreDns(); }
+                    finally { dnsRestored = RestoreDns(); }
                 }
-                Log(ok ? Loc.T("log.done") : Loc.T("log.failed"));
+                if (ok) Log(Loc.T("log.done"));
+                else if (!noVerifiedProfile || !dnsRestored) Log(Loc.T("log.failed"));
             }
             return ok;
         }

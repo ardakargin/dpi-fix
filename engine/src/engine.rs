@@ -10,6 +10,14 @@ pub struct Engine {
     dll_dir: Option<PathBuf>,
 }
 
+struct Segmentation {
+    header: usize,
+    split: usize,
+    sequence: u32,
+    flags: u8,
+    tail_first: bool,
+}
+
 impl Engine {
     pub fn new(config: Config, dll_dir: Option<PathBuf>) -> io::Result<Self> {
         let hosts = HostList::load(&config.domains)?;
@@ -49,10 +57,10 @@ impl Engine {
             };
             let original = &mut original[..length];
             let plan = Packet::parse(original).and_then(|packet| self.plan(&packet));
-            if let Some((header, split, seq, flags)) = plan {
+            if let Some(plan) = plan {
                 let mut modified_address = address;
                 modified_address.mark_tcp_checksums(original[0] >> 4 == 4);
-                if send_segments(original, &mut segment, header, split, seq, flags, |packet| {
+                if send_segments(original, &mut segment, plan, |packet| {
                     capture.send(packet, &modified_address)
                         .is_ok_and(|sent| sent == packet.len())
                 }) {
@@ -63,7 +71,7 @@ impl Engine {
         }
     }
 
-    fn plan(&self, packet: &Packet<'_>) -> Option<(usize, usize, u32, u8)> {
+    fn plan(&self, packet: &Packet<'_>) -> Option<Segmentation> {
         let flags = packet.tcp_flags()?;
         // SYN, RST and URG require additional sequence semantics.
         if flags & 0x26 != 0 || packet.payload_offset() > packet.data.len() {
@@ -78,7 +86,7 @@ impl Engine {
         let payload = packet.payload();
         let split = match packet.dst_port {
             443 => {
-                let sni = sniff::tls_sni(payload)?;
+                let sni = sniff::tls_sni(payload, self.config.tls_reorder)?;
                 if !self.hosts.matches(sni.host) { return None; }
                 sni.offset + sni.len / 2
             }
@@ -91,30 +99,42 @@ impl Engine {
         if split == 0 || split >= payload.len() {
             return None;
         }
-        Some((packet.payload_offset(), split, packet.tcp_seq()?, flags))
+        Some(Segmentation {
+            header: packet.payload_offset(),
+            split,
+            sequence: packet.tcp_seq()?,
+            flags,
+            tail_first: packet.dst_port == 443 && self.config.tls_reorder,
+        })
     }
 }
 
 fn send_segments(
-    original: &[u8], scratch: &mut [u8], header: usize, split: usize, sequence: u32,
-    flags: u8, mut send: impl FnMut(&[u8]) -> bool,
+    original: &[u8], scratch: &mut [u8], plan: Segmentation, mut send: impl FnMut(&[u8]) -> bool,
 ) -> bool {
+    let Segmentation { header, split, sequence, flags, tail_first } = plan;
     let boundary = header + split;
-    scratch[..boundary].copy_from_slice(&original[..boundary]);
-    let Some(mut first) = Packet::parse(&mut scratch[..boundary]) else { return false; };
-    prepare(&mut first, sequence, flags & !0x09);
-    if !send(first.data) {
-        return false;
+    // Keep FIN and PSH with the tail, and CWR with the head of the TCP byte stream.
+    let mut segments = [
+        (header..boundary, sequence, flags & !0x09),
+        (boundary..original.len(), sequence.wrapping_add(split as u32), flags & !0x80),
+    ];
+    if tail_first {
+        segments.reverse();
     }
 
-    // The first segment already left. Returning false lets the caller retry
-    // the original bytes at their original sequence number.
-    let second_len = original.len() - split;
-    scratch[..header].copy_from_slice(&original[..header]);
-    scratch[header..second_len].copy_from_slice(&original[boundary..]);
-    let Some(mut second) = Packet::parse(&mut scratch[..second_len]) else { return false; };
-    prepare(&mut second, sequence.wrapping_add(split as u32), flags & !0x80);
-    send(second.data)
+    for (payload, sequence, flags) in segments {
+        let length = header + payload.len();
+        scratch[..header].copy_from_slice(&original[..header]);
+        scratch[header..length].copy_from_slice(&original[payload]);
+        let Some(mut packet) = Packet::parse(&mut scratch[..length]) else { return false; };
+        prepare(&mut packet, sequence, flags);
+        // Retry the original at its original sequence number if either send fails.
+        if !send(packet.data) {
+            return false;
+        }
+    }
+    true
 }
 
 fn prepare(packet: &mut Packet<'_>, sequence: u32, flags: u8) {
@@ -150,7 +170,7 @@ mod tests {
     #[test]
     fn leaves_tiktok_tls_untouched_unless_explicitly_listed() {
         let mut engine = Engine {
-            config: Config { domains: PathBuf::new(), http: false },
+            config: Config { domains: PathBuf::new(), http: false, tls_reorder: true },
             hosts: HostList::parse("discord.com\ninstagram.com\nx.com"),
             dll_dir: None,
         };
@@ -165,17 +185,87 @@ mod tests {
     #[test]
     fn only_plans_for_listed_domains_and_opted_in_http() {
         let mut engine = Engine {
-            config: Config { domains: PathBuf::new(), http: true },
+            config: Config { domains: PathBuf::new(), http: true, tls_reorder: true },
             hosts: HostList::parse("example.com"),
             dll_dir: None,
         };
         let mut target = request("www.example.com");
         let target = Packet::parse(&mut target).unwrap();
-        assert_eq!(engine.plan(&target), Some((40, 3, 0, 0x18)));
+        let plan = engine.plan(&target).unwrap();
+        assert_eq!(plan.split, 3);
+        assert!(!plan.tail_first);
         let mut other = request("notexample.com");
         assert!(engine.plan(&Packet::parse(&mut other).unwrap()).is_none());
         engine.config.http = false;
         assert!(engine.plan(&target).is_none());
+    }
+
+    #[test]
+    fn reorders_the_same_tls_bytes_and_preserves_sequence_and_flags() {
+        let mut engine = Engine {
+            config: Config { domains: PathBuf::new(), http: false, tls_reorder: false },
+            hosts: HostList::parse("example.com"),
+            dll_dir: None,
+        };
+        let hello = sniff::tests::client_hello("www.example.com");
+        let mut original = tcp_packet(443, &hello);
+        let sni = sniff::tls_sni(&hello, false).unwrap();
+        let split = sni.offset + sni.len / 2;
+        let sequence = u32::MAX;
+        let tail_sequence = sequence.wrapping_add(split as u32);
+        original[24..28].copy_from_slice(&sequence.to_be_bytes());
+        original[33] = 0x99; // CWR | ACK | PSH | FIN
+        let packet = Packet::parse(&mut original).unwrap();
+        let plan = engine.plan(&packet).unwrap();
+        assert_eq!(plan.split, split);
+        assert!(!plan.tail_first);
+
+        engine.config.tls_reorder = true;
+        let plan = engine.plan(&packet).unwrap();
+        assert_eq!(plan.split, split);
+        assert!(plan.tail_first);
+        let mut scratch = vec![0; original.len()];
+        let mut segments = Vec::new();
+        assert!(send_segments(&original, &mut scratch, plan, |packet| {
+            segments.push(packet.to_vec());
+            true
+        }));
+        let expected_segments = [
+            (&hello[split..], tail_sequence, 0x19),
+            (&hello[..split], sequence, 0x90),
+        ];
+        assert_eq!(segments.len(), expected_segments.len());
+        for (bytes, (payload, seq, flags)) in segments.iter_mut().zip(expected_segments) {
+            let expected = bytes.clone();
+            let mut segment = Packet::parse(bytes).unwrap();
+            assert!(segment.has_wire_length());
+            assert_eq!(segment.tcp_seq(), Some(seq));
+            assert_eq!(segment.tcp_flags(), Some(flags));
+            assert_eq!(segment.payload(), payload);
+            segment.recompute_checksums();
+            assert_eq!(segment.data, expected);
+        }
+    }
+
+    #[test]
+    fn reorders_the_first_segment_of_a_larger_hello_with_a_complete_listed_sni() {
+        let mut engine = Engine {
+            config: Config { domains: PathBuf::new(), http: false, tls_reorder: false },
+            hosts: HostList::parse("example.com"),
+            dll_dir: None,
+        };
+        let hello = sniff::tests::client_hello_with_padding("www.example.com", 1600);
+        let mut first_bytes = tcp_packet(443, &hello[..1460]);
+        let first = Packet::parse(&mut first_bytes).unwrap();
+        assert!(engine.plan(&first).is_none());
+
+        engine.config.tls_reorder = true;
+        assert!(engine.plan(&first).unwrap().tail_first);
+        let mut continuation_bytes = tcp_packet(443, &hello[1460..]);
+        assert!(engine.plan(&Packet::parse(&mut continuation_bytes).unwrap()).is_none());
+
+        engine.hosts = HostList::parse("other.example");
+        assert!(engine.plan(&first).is_none());
     }
 
     #[test]
@@ -184,7 +274,8 @@ mod tests {
         let expected = original.clone();
         let mut scratch = vec![0; original.len()];
         let mut segments = Vec::new();
-        let complete = send_segments(&original, &mut scratch, 40, 3, u32::MAX, 0x19, |packet| {
+        let plan = Segmentation { header: 40, split: 3, sequence: u32::MAX, flags: 0x19, tail_first: false };
+        let complete = send_segments(&original, &mut scratch, plan, |packet| {
             segments.push(packet.to_vec());
             segments.len() == 1
         });

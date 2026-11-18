@@ -211,6 +211,8 @@ static class Loc
 
     static Loc()
     {
+        Add("profile.reordered", "HTTPS (ters TCP sırası)", "HTTPS (reordered TCP)");
+        AddInternational("profile.reordered", "HTTPS (umgekehrte TCP-Reihenfolge)", "HTTPS (segments TCP inversés)", "HTTPS (segmentos TCP invertidos)");
         Add("setup.title", "DPI Fix Kurulumu", "DPI Fix Setup");
         AddInternational("setup.title", "DPI Fix installieren", "Installation de DPI Fix", "Instalación de DPI Fix");
         Add("setup.location", "Kurulum klasörü: {0}", "Install folder: {0}");
@@ -233,8 +235,11 @@ static class Loc
         AddInternational("setup.testing", "Verbindung und Dienstprofil werden geprüft…", "Test de la connexion et du profil de service…", "Probando la conexión y el perfil del servicio…");
         Add("setup.installed", "Uygulama kuruldu", "App installed");
         AddInternational("setup.installed", "App installiert", "Application installée", "Aplicación instalada");
-        Add("setup.appOnly", "Uygulama kuruldu. Servis etkinleştirilemedi.", "App installed. Service could not be enabled.");
-        AddInternational("setup.appOnly", "App installiert. Dienst konnte nicht aktiviert werden.", "Application installée. Service non activé.", "Aplicación instalada. No se pudo activar el servicio.");
+        Add("setup.appOnly", "Uygulama kuruldu. Servis sonucu için işlem günlüğüne bakın.",
+            "App installed. See the activity log for service details.");
+        AddInternational("setup.appOnly", "App installiert. Details zum Dienst stehen im Vorgangsprotokoll.",
+            "Application installée. Le journal indique le résultat pour le service.",
+            "Aplicación instalada. Consulta el registro para ver el estado del servicio.");
         Add("setup.active", "Servis çalışıyor", "Service running");
         AddInternational("setup.active", "Dienst läuft", "Service en cours", "Servicio en ejecución");
         Add("setup.removing", "DPI Fix kaldırılıyor…", "Removing DPI Fix…");
@@ -284,6 +289,48 @@ static class Loc
         Add("btn.list", "Site Listesi", "Site List");
         Add("btn.update", "Güncelleme", "Update");
         Add("btn.log", "Günlüğü Aç", "Open Log");
+        Add("btn.browser", "Discord’u Tarayıcıda Aç", "Discord in Browser");
+        AddInternational("btn.browser", "Discord im Browser", "Discord sur le Web", "Discord en la web");
+        Add("browser.help", "Discord, ayrı bir Edge veya Chrome profilinde açılır.\r\nYerel bağlantı aracı Cloudflare DNS-over-HTTPS’i yalnızca seçili Discord alan adları için kullanır.\r\nDiğer sitelere doğrudan bağlanılır. Tarayıcı site sertifikalarını doğrular.",
+            "Opens Discord in a separate Edge or Chrome profile.\r\nThe local relay uses Cloudflare DNS over HTTPS for selected Discord domains only.\r\nOther sites connect directly. The browser verifies site certificates.");
+        AddInternational("browser.help",
+            "Öffnet Discord in einem separaten Edge- oder Chrome-Profil.\r\nDie lokale Weiterleitung nutzt DNS over HTTPS von Cloudflare nur für ausgewählte Discord-Domains.\r\nAndere Websites werden direkt aufgerufen. Der Browser prüft die Website-Zertifikate.",
+            "Ouvre Discord dans un profil Edge ou Chrome distinct.\r\nLe relais local utilise le DNS sur HTTPS de Cloudflare uniquement pour certains domaines Discord.\r\nLes autres sites sont accessibles directement. Le navigateur vérifie les certificats des sites.",
+            "Abre Discord en un perfil independiente de Edge o Chrome.\r\nEl intermediario local usa DNS sobre HTTPS de Cloudflare solo para algunos dominios de Discord.\r\nLos demás sitios se conectan directamente. El navegador verifica los certificados de los sitios.");
+        Add("browser.error", "Tarayıcı modu açılamadı. {0}", "Browser mode could not open. {0}");
+        AddInternational("browser.error", "Der Browsermodus konnte nicht geöffnet werden. {0}",
+            "Impossible d’ouvrir le mode navigateur. {0}", "No se pudo abrir el modo navegador. {0}");
+        Add("browser.helperMissing", "BrowserMode.exe bulunamadı. DPI Fix’i kurulum paketiyle yeniden kurun.",
+            "BrowserMode.exe is missing. Reinstall DPI Fix using the setup package.");
+        AddInternational("browser.helperMissing", "BrowserMode.exe fehlt. Installieren Sie DPI Fix mit dem Installationspaket neu.",
+            "BrowserMode.exe est introuvable. Réinstallez DPI Fix avec le programme d’installation.",
+            "Falta BrowserMode.exe. Reinstala DPI Fix con el instalador.");
+        Add("browser.noDesktop", "Windows Gezgini’nin masaüstü oturumu bulunamadı.", "The Windows Explorer desktop session was not available.");
+        AddInternational("browser.noDesktop", "Die Desktop-Sitzung des Windows-Explorers war nicht verfügbar.",
+            "La session de bureau de l’Explorateur Windows était indisponible.", "La sesión de escritorio del Explorador de Windows no estaba disponible.");
+        Add("browser.elevated", "Tarayıcı modunu yönetici yetkisi olmadan çalıştırın.", "Run browser mode without administrator privileges.");
+        AddInternational("browser.elevated", "Starten Sie den Browsermodus ohne Administratorrechte.",
+            "Exécutez le mode navigateur sans privilèges administrateur.", "Ejecuta el modo navegador sin privilegios de administrador.");
+        Add("browser.noBrowser", "Microsoft Edge veya Google Chrome’un standart kurulumu bulunamadı.",
+            "A standard installation of Microsoft Edge or Google Chrome was not found.");
+        AddInternational("browser.noBrowser", "Es wurde keine Standardinstallation von Microsoft Edge oder Google Chrome gefunden.",
+            "Aucune installation standard de Microsoft Edge ou Google Chrome n’a été trouvée.",
+            "No se encontró una instalación estándar de Microsoft Edge o Google Chrome.");
+        Add("browser.alreadyRunning", "Tarayıcı modu zaten çalışıyor. Açık tarayıcı penceresini kullanın.",
+            "Browser mode is already running. Use the open browser window.");
+        AddInternational("browser.alreadyRunning", "Der Browsermodus läuft bereits. Verwenden Sie das geöffnete Browserfenster.",
+            "Le mode navigateur est déjà actif. Utilisez la fenêtre de navigateur ouverte.",
+            "El modo navegador ya está en ejecución. Usa la ventana del navegador abierta.");
+        Add("browser.profileBusy", "DPI Fix tarayıcı profili kullanımda. Profilin pencerelerini kapatıp tekrar deneyin.",
+            "The DPI Fix browser profile is in use. Close its windows and try again.");
+        AddInternational("browser.profileBusy", "Das Browserprofil von DPI Fix ist bereits in Verwendung. Schließen Sie seine Fenster und versuchen Sie es erneut.",
+            "Le profil de navigateur DPI Fix est déjà utilisé. Fermez ses fenêtres et réessayez.",
+            "El perfil del navegador de DPI Fix está en uso. Cierra sus ventanas y vuelve a intentarlo.");
+        Add("browser.startFailed", "Tarayıcı başlatılamadı.", "The browser did not start.");
+        AddInternational("browser.startFailed", "Der Browser wurde nicht gestartet.", "Le navigateur n’a pas démarré.", "El navegador no se inició.");
+        Add("browser.exit", "Tarayıcı {0} çıkış koduyla kapandı.", "The browser exited with code {0}.");
+        AddInternational("browser.exit", "Der Browser wurde mit Code {0} beendet.",
+            "Le navigateur s’est fermé avec le code {0}.", "El navegador se cerró con el código {0}.");
         Add("btn.lang", "Dil", "Language");
         Add("btn.close", "Kapat", "Close");
 
@@ -341,8 +388,16 @@ static class Loc
         Add("log.step6", "[6/6] Başlatılıyor", "[6/6] Starting");
         Add("log.trying", "Deneniyor: {0}", "Trying: {0}");
         Add("log.next", "Uygun değil, sonraki adaya geçiliyor.", "Not suitable, moving to next candidate.");
-        Add("log.none", "Mevcut erişimi koruyup bir hedef siteye erişim kazandıran profil bulunamadı.",
-                        "No profile restored a target site while preserving existing access.");
+        Add("log.none", "Mevcut bağlantıları korurken erişimi iyileştiren bir profil doğrulanamadı. Servis etkinleştirilmedi. Discord için DPI Fix’te ‘Discord’u Tarayıcıda Aç’ seçeneğini deneyin.",
+                        "No profile could be verified to improve access while preserving existing connections. The service was not enabled. For Discord, try ‘Discord in Browser’ in DPI Fix.");
+        AddInternational("log.none", "Es konnte kein Profil bestätigt werden, das den Zugriff verbessert und bestehende Verbindungen erhält. Der Dienst wurde nicht aktiviert. Versuchen Sie für Discord die Schaltfläche „Discord im Browser“ in DPI Fix.",
+            "Aucun profil n’a pu être validé comme améliorant l’accès tout en préservant les connexions existantes. Le service n’a pas été activé. Pour Discord, essayez « Discord sur le Web » dans DPI Fix.",
+            "No se pudo verificar ningún perfil que mejorara el acceso sin afectar a las conexiones existentes. El servicio no se activó. Para Discord, prueba «Discord en la web» en DPI Fix.");
+        Add("log.serviceValidationFailed", "Son kontrolde servisin çalıştığı ve mevcut bağlantıları koruyarak erişimi iyileştirdiği doğrulanamadı.",
+            "The final check could not verify that the service was running and improved access while preserving existing connections.");
+        AddInternational("log.serviceValidationFailed", "Die abschließende Prüfung konnte nicht bestätigen, dass der Dienst läuft und den Zugriff verbessert, ohne bestehende Verbindungen zu beeinträchtigen.",
+            "Le contrôle final n’a pas pu confirmer que le service fonctionnait et améliorait l’accès tout en préservant les connexions existantes.",
+            "La comprobación final no pudo confirmar que el servicio estuviera en ejecución y mejorara el acceso sin afectar a las conexiones existentes.");
         Add("log.chosen", "Seçilen: {0}", "Selected: {0}");
         Add("log.svcfail", "Servis başlamadı. Ayrıntı: {0}", "Service did not start. Detail: {0}");
         Add("log.done", "Servis çalışıyor. Uygulama kapandığında çalışmayı sürdürür.",

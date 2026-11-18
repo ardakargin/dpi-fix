@@ -1,5 +1,5 @@
 // Setup.cs - DpiFix kurulum/kaldırma aracı (tek dosya kurulum)
-// DpiFix.exe bu exe'nin içine gömülüdür. C# 5 uyumlu.
+// DpiFix.exe ve BrowserMode.exe bu exe'nin içine gömülüdür. C# 5 uyumlu.
 using System;
 using System.Diagnostics;
 using System.Drawing;
@@ -18,6 +18,7 @@ static class SetupCore
     public const string UninstallArgument = "--uninstall";
     public const string UninstallUiArgument = "--uninstall-ui";
     const string ResApp = "payload_app";
+    const string ResBrowser = "payload_browser";
     const string UninstallKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\DpiFix";
 
     public static string TargetDir
@@ -26,6 +27,7 @@ static class SetupCore
     }
     public static string TargetExe { get { return Path.Combine(TargetDir, "DpiFix.exe"); } }
     public static string TargetSetup { get { return Path.Combine(TargetDir, "Kurulum.exe"); } }
+    static string TargetBrowser { get { return Path.Combine(TargetDir, "BrowserMode.exe"); } }
 
     static string StartMenuDir
     {
@@ -65,23 +67,24 @@ static class SetupCore
         Directory.CreateDirectory(TargetDir);
         string token = "." + Guid.NewGuid().ToString("N");
         string appStage = TargetExe + token + ".tmp";
+        string browserStage = TargetBrowser + token + ".tmp";
         string setupStage = TargetSetup + token + ".tmp";
         string previousApp = TargetExe + token + ".bak";
+        string previousBrowser = TargetBrowser + token + ".bak";
         string previousSetup = TargetSetup + token + ".bak";
-        bool appPublished = false, setupPublished = false;
+        bool appPublished = false, browserPublished = false, setupPublished = false;
         bool sameSetup = String.Equals(Assembly.GetExecutingAssembly().Location, TargetSetup, StringComparison.OrdinalIgnoreCase);
         try
         {
-            using (Stream resource = Assembly.GetExecutingAssembly().GetManifestResourceStream(ResApp))
-            {
-                if (resource == null) throw new InvalidDataException(Loc.T("setup.missing"));
-                using (FileStream output = File.Create(appStage)) resource.CopyTo(output);
-            }
+            StagePayload(ResApp, appStage);
+            StagePayload(ResBrowser, browserStage);
             if (!sameSetup)
             {
                 File.Copy(Assembly.GetExecutingAssembly().Location, setupStage);
                 File.SetAttributes(setupStage, FileAttributes.Normal);
             }
+            PublishFile(browserStage, TargetBrowser, previousBrowser);
+            browserPublished = true;
             PublishFile(appStage, TargetExe, previousApp);
             appPublished = true;
             if (!sameSetup)
@@ -95,21 +98,38 @@ static class SetupCore
         {
             if (setupPublished) RollbackFile(TargetSetup, previousSetup);
             if (appPublished) RollbackFile(TargetExe, previousApp);
+            if (browserPublished) RollbackFile(TargetBrowser, previousBrowser);
             throw;
         }
         finally
         {
             DeleteTemporaryFile(appStage);
+            DeleteTemporaryFile(browserStage);
             DeleteTemporaryFile(setupStage);
         }
         DeleteTemporaryFile(previousApp);
+        DeleteTemporaryFile(previousBrowser);
         DeleteTemporaryFile(previousSetup);
+    }
+
+    static void StagePayload(string name, string path)
+    {
+        using (Stream resource = Assembly.GetExecutingAssembly().GetManifestResourceStream(name))
+        {
+            if (resource == null) throw new InvalidDataException(Loc.T("setup.missing"));
+            using (FileStream output = File.Create(path)) resource.CopyTo(output);
+        }
     }
 
     static void RollbackFile(string path, string backup)
     {
-        if (File.Exists(backup)) File.Replace(backup, path, null);
-        else File.Delete(path);
+        try
+        {
+            if (File.Exists(backup)) File.Replace(backup, path, null);
+            else File.Delete(path);
+        }
+        catch (IOException ex) { Log(ex.Message); }
+        catch (UnauthorizedAccessException ex) { Log(ex.Message); }
     }
 
     static void DeleteTemporaryFile(string path)
@@ -148,7 +168,7 @@ static class SetupCore
             key.SetValue("NoRepair", 1);
             key.SetValue("UninstallString", "\"" + TargetSetup + "\" " + UninstallUiArgument);
             key.SetValue("QuietUninstallString", "\"" + TargetSetup + "\" " + UninstallArgument);
-            long size = new FileInfo(TargetExe).Length + new FileInfo(TargetSetup).Length;
+            long size = new FileInfo(TargetExe).Length + new FileInfo(TargetBrowser).Length + new FileInfo(TargetSetup).Length;
             key.SetValue("EstimatedSize", (int)((size + 1023) / 1024), RegistryValueKind.DWord);
         }
     }
@@ -189,9 +209,9 @@ static class SetupCore
             path.StartsWith(directory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 
-    static bool RemoveInstalledExecutable(string path)
+    static string RemoveInstalledExecutable(string path)
     {
-        try { return Core.RemoveOwnedFile(path); }
+        try { return Core.RemoveOwnedFile(path) ? path : null; }
         catch (UnauthorizedAccessException)
         {
             // Windows denies deletion of an executable while its image is loaded.
@@ -203,7 +223,7 @@ static class SetupCore
                 File.Move(retired, path);
                 throw;
             }
-            return true;
+            return retired;
         }
     }
 
@@ -293,13 +313,17 @@ static class SetupCore
 
         if (Directory.Exists(TargetDir))
         {
-            bool appDelayed = RemoveInstalledExecutable(TargetExe);
-            bool setupDelayed = RemoveInstalledExecutable(TargetSetup);
+            string[] queuedFiles = {
+                RemoveInstalledExecutable(TargetBrowser),
+                RemoveInstalledExecutable(TargetExe),
+                RemoveInstalledExecutable(TargetSetup)
+            };
             string[] remaining = Directory.GetFileSystemEntries(TargetDir);
             if (remaining.Length == 0) Directory.Delete(TargetDir);
-            else if (remaining.Length == (appDelayed ? 1 : 0) + (setupDelayed ? 1 : 0))
+            else if (Array.TrueForAll(remaining, path => Array.Exists(queuedFiles,
+                queued => String.Equals(queued, path, StringComparison.OrdinalIgnoreCase))))
                 Core.QueueRemoval(TargetDir);
-            delayed |= appDelayed || setupDelayed;
+            delayed |= Array.Exists(queuedFiles, path => path != null);
         }
 
         DeleteRegistration(RegistryView.Registry32);
@@ -441,7 +465,7 @@ class SetupForm : Form
         location.Text = Loc.T("setup.location", SetupCore.TargetDir);
         status.Text = Loc.T(statusKey);
         install.Text = Loc.T(SetupCore.Installed() ? "setup.repair" : "setup.install");
-        remove.Text = Loc.T("btn.remove");
+        remove.Text = Loc.T("confirm.title");
         open.Text = Loc.T("setup.open");
         network.Text = Loc.T("setup.network");
         doh.Text = Loc.T("setup.doh");
@@ -501,8 +525,8 @@ class SetupForm : Form
 
     void ClickRemove(object sender, EventArgs e)
     {
-        if (MessageBox.Show(Loc.T("confirm.remove"), Loc.T("confirm.title"),
-            MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+        if (MessageBox.Show(this, Loc.T("confirm.remove"), Loc.T("confirm.title"),
+            MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
         RunRemoval();
     }
 
