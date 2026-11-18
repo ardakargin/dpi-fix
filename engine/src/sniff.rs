@@ -143,11 +143,11 @@ fn be24(b: &[u8], o: usize) -> Option<u32> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     /// Gerçek bir ClientHello'yu taklit eden minimal kayıt üretir
-    fn client_hello(host: &str) -> Vec<u8> {
+    pub(crate) fn client_hello(host: &str) -> Vec<u8> {
         let mut ext = Vec::new();
         // server_name uzantısı
         let mut sni = Vec::new();

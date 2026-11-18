@@ -1,4 +1,4 @@
-// Ui.cs - tema, özel kontroller ve yerelleştirme (TR/EN)
+// Ui.cs - tema, özel kontroller ve yerelleştirme
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -185,7 +185,7 @@ class FlatCheck : Control
     }
 }
 
-/// TR / EN yerelleştirme
+/// Arayüz yerelleştirmesi
 static class Loc
 {
     public static string Lang = "tr";
@@ -257,10 +257,9 @@ static class Loc
         AddInternational("setup.shortcut", "Verknüpfung erstellt: {0}", "Raccourci créé : {0}", "Acceso directo creado: {0}");
         Add("setup.log", "İşlem günlüğü", "Activity log");
         AddInternational("setup.log", "Vorgangsprotokoll", "Journal des opérations", "Registro de actividad");
-        Add("app.title", "DPI / DNS Zorlaması Kaldırıcı", "DPI / DNS Block Remover");
-        Add("app.sub", "DPI Fix Engine {0} · otomatik yapılandırma · kalıcı servis",
-                      "DPI Fix Engine {0} · automatic setup · persistent service");
-        Add("sec.status", "DURUM", "STATUS");
+        Add("app.title", "DPI Fix", "DPI Fix");
+        Add("app.sub", "Bağlantı ve Windows servisi", "Connection and Windows service");
+        Add("app.serviceStatus", "Windows servisi · {0}", "Windows service · {0}");
         Add("sec.actions", "İŞLEMLER", "ACTIONS");
         Add("sec.settings", "AYARLAR", "SETTINGS");
         Add("sec.log", "GÜNLÜK", "LOG");
@@ -268,23 +267,24 @@ static class Loc
         Add("st.running", "ÇALIŞIYOR", "RUNNING");
         Add("st.stopped", "DURDU", "STOPPED");
         Add("st.starting", "BAŞLIYOR", "STARTING");
-        Add("st.stopping", "DURUYOR", "STOPPING");
+        Add("st.stopping", "DURDURULUYOR", "STOPPING");
         Add("st.absent", "KURULU DEĞİL", "NOT INSTALLED");
         Add("st.unknown", "BİLİNMİYOR", "UNKNOWN");
 
-        Add("lbl.service", "Servis", "Service");
-        Add("lbl.engine", "Motor", "Engine");
+        Add("lbl.appVersion", "Uygulama sürümü", "App version");
+        Add("lbl.engine", "Paketlenen motor", "Bundled engine");
         Add("lbl.profile", "Yapılandırma", "Configuration");
         Add("lbl.sites", "Site listesi", "Site list");
         Add("lbl.entries", "{0} alan adı", "{0} domains");
 
-        Add("btn.install", "Kur / Onar", "Install / Repair");
-        Add("btn.stop", "Durdur", "Stop");
-        Add("btn.remove", "Kaldır", "Remove");
+        Add("btn.install", "Servisi Kur / Onar", "Install / Repair Service");
+        Add("btn.stop", "Servisi Durdur", "Stop Service");
+        Add("btn.remove", "Servisi Kaldır", "Remove Service");
         Add("btn.test", "Bağlantı Testi", "Connection Test");
         Add("btn.list", "Site Listesi", "Site List");
         Add("btn.update", "Güncelleme", "Update");
         Add("btn.log", "Günlüğü Aç", "Open Log");
+        Add("btn.lang", "Dil", "Language");
         Add("btn.close", "Kapat", "Close");
 
         Add("chk.doh", "DNS-over-HTTPS (Cloudflare)", "DNS-over-HTTPS (Cloudflare)");
@@ -294,23 +294,25 @@ static class Loc
         Add("log.enginefb", "Rust motoru kullanılamıyor, GoodbyeDPI'ya dönüldü.",
                             "Rust engine unavailable, falling back to GoodbyeDPI.");
 
-        Add("confirm.remove", "Servis, DNS ayarı ve kopyalanan dosyalar geri alınacak. Onaylıyor musunuz?",
-                             "Service, DNS setting and copied files will be reverted. Continue?");
-        Add("confirm.title", "Kaldır", "Remove");
+        Add("confirm.remove", "DPI Fix uygulaması ve Windows servisi kaldırılacak. Önceki DNS ayarları geri yüklenecek, uygulama ayarları, site listesi ve günlük silinecek. Devam edilsin mi?",
+                             "DPI Fix and its Windows service will be uninstalled. Previous DNS settings will be restored, and the app settings, site list, and log will be deleted. Continue?");
+        Add("confirm.title", "DPI Fix’i Kaldır", "Uninstall DPI Fix");
+        Add("confirm.serviceRemove", "Windows servisi ve servis dosyaları kaldırılacak. Önceki DNS ayarları geri yüklenecek. Devam edilsin mi?",
+                                     "The Windows service and its files will be removed. Previous DNS settings will be restored. Continue?");
+        Add("service.restart", "Servisin kaldırılmasını tamamlamak için Windows’u yeniden başlatın.",
+                               "Restart Windows to finish removing the service.");
 
-        Add("hint.ready", "Hazır. 'Kur / Onar' ile tek tuşla kurulum yapılır.",
-                          "Ready. One click with 'Install / Repair'.");
-        Add("hint.tip", "İpucu: açılmayan siteyi 'Site Listesi'ne ekleyip 'Kur / Onar' deyin.",
-                        "Tip: add a blocked site to 'Site List' then press 'Install / Repair'.");
+        Add("hint.tip", "Site listesindeki değişiklikleri uygulamak için ‘Servisi Kur / Onar’ düğmesini kullanın.",
+                        "Use ‘Install / Repair Service’ to apply changes to the site list.");
         Add("hint.background", "Kurulumdan sonra bu pencereyi kapatsanız da servis çalışmaya devam eder.",
                                "After install you can close this window; the service keeps running.");
         Add("hint.log", "Günlük dosyası: {0}", "Log file: {0}");
 
-        Add("run.install", "KURULUM / ONARIM", "INSTALL / REPAIR");
-        Add("run.stop", "SERVİS DURDURULUYOR", "STOPPING SERVICE");
-        Add("run.remove", "KALDIRMA", "REMOVAL");
-        Add("run.test", "BAĞLANTI TESTİ", "CONNECTION TEST");
-        Add("run.update", "GÜNCELLEME KONTROLÜ", "UPDATE CHECK");
+        Add("run.install", "Servis kuruluyor veya onarılıyor…", "Installing or repairing the service…");
+        Add("run.stop", "Servis durduruluyor…", "Stopping the service…");
+        Add("run.remove", "Servis kaldırılıyor…", "Removing the service…");
+        Add("run.test", "Bağlantı test ediliyor…", "Testing the connection…");
+        Add("run.update", "Güncellemeler kontrol ediliyor…", "Checking for updates…");
 
         Add("lang.name", "Türkçe", "English");
         Add("lang.other", "English", "Türkçe");
@@ -329,8 +331,8 @@ static class Loc
         Add("probe.cert", "TLS sertifikası doğrulanamadı", "TLS certificate validation failed");
         Add("probe.http", "Geçerli bir HTTP yanıtı alınamadı", "No valid HTTP response");
         Add("probe.timeout", "Bağlantı testi zaman aşımına uğradı", "Connection check timed out");
-        Add("log.trydoh", "Ayarlar’dan DNS-over-HTTPS’i seçip Kur / Onar ile tekrar deneyebilirsiniz.",
-                          "Enable DNS-over-HTTPS in Settings and try Install / Repair again.");
+        Add("log.trydoh", "Ayarlar’da DNS-over-HTTPS’i seçip ‘Servisi Kur / Onar’ ile tekrar deneyebilirsiniz.",
+                          "Enable DNS-over-HTTPS in Settings and try ‘Install / Repair Service’ again.");
         Add("log.engineexit", "Motor durdu ({0}). {1}", "The engine exited ({0}). {1}");
         Add("log.step3", "[3/6] DNS katmanı", "[3/6] DNS layer");
         Add("log.step4", "[4/6] Bu hat için en uygun yapılandırma aranıyor (~20 sn)",
@@ -343,19 +345,25 @@ static class Loc
                         "No profile restored a target site while preserving existing access.");
         Add("log.chosen", "Seçilen: {0}", "Selected: {0}");
         Add("log.svcfail", "Servis başlamadı. Ayrıntı: {0}", "Service did not start. Detail: {0}");
-        Add("log.done", "Kurulum tamam. Uygulama kapansa da servis çalışır.",
-                        "Install complete. The service keeps running after you close the app.");
-        Add("log.failed", "Kurulum tamamlanamadı.", "Install could not be completed.");
-        Add("log.removed", "Kaldırma tamamlandı.", "Removal complete.");
+        Add("log.done", "Servis çalışıyor. Uygulama kapandığında çalışmayı sürdürür.",
+                        "The service is running. It keeps running after you close the app.");
+        Add("log.failed", "Servis kurulumu tamamlanamadı.", "Service installation could not be completed.");
+        Add("log.removed", "Servis ve servis dosyaları kaldırıldı.", "The service and its files were removed.");
         Add("log.testhead", "Bağlantı testi (servis: {0})", "Connection test (service: {0})");
         Add("log.testok", "Tüm kontroller geçti.", "All checks passed.");
-        Add("log.testfail", "Sorun sürüyorsa 'Kur / Onar' ile yapılandırmayı değiştirin.",
-                            "If the problem persists use 'Install / Repair' to change configuration.");
+        Add("log.testpartial", "Genel HTTPS bağlantısı doğrulandı. Bazı sitelere erişim doğrulanamadı.",
+                               "General HTTPS connectivity was confirmed. Access to some sites could not be confirmed.");
+        AddInternational("log.testpartial", "Die allgemeine HTTPS-Verbindung wurde bestätigt. Der Zugriff auf einige Websites konnte nicht bestätigt werden.",
+            "La connexion HTTPS générale a été confirmée. L’accès à certains sites n’a pas pu être confirmé.",
+            "Se confirmó la conexión HTTPS general. No se pudo confirmar el acceso a algunos sitios.");
+        Add("log.testfail", "Sorun sürüyorsa ‘Servisi Kur / Onar’ ile yapılandırmayı değiştirin.",
+                            "If the problem persists, use ‘Install / Repair Service’ to change the configuration.");
         Add("log.testwarn", "Not: servis çalışmıyor, sonuç yanıltıcı olabilir.",
                             "Note: service is not running, result may be misleading.");
         Add("log.reach", "erişilebilir", "reachable");
         Add("log.blocked", "erişilemedi", "unreachable");
-        Add("log.req", " (zorunlu)", " (required)");
+        Add("log.req", " (kontrol)", " (control)");
+        AddInternational("log.req", " (Kontrolle)", " (contrôle)", " (control)");
         Add("log.updscan", "Güncelleme kontrolü...", "Checking for updates...");
         Add("log.updcur", "Kurulu motor: DPI Fix Engine {0} | DpiFix v{1}",
                           "Installed engine: DPI Fix Engine {0} | DpiFix v{1}");
@@ -374,9 +382,8 @@ static class Loc
         Add("log.dir", "Yönlendirme modu: {0}", "Redirect mode: {0}");
         Add("log.blacklist", "Varsayılan site listesi oluşturuldu: {0}", "Default site list created: {0}");
 
-        AddInternational("app.title", "DPI Fix", "DPI Fix", "DPI Fix");
         AddInternational("app.sub", "Verbindung und Windows-Dienst", "Connexion et service Windows", "Conexión y servicio de Windows");
-        AddInternational("sec.status", "STATUS", "ÉTAT", "ESTADO");
+        AddInternational("app.serviceStatus", "Windows-Dienst · {0}", "Service Windows · {0}", "Servicio de Windows · {0}");
         AddInternational("sec.actions", "AKTIONEN", "ACTIONS", "ACCIONES");
         AddInternational("sec.settings", "EINSTELLUNGEN", "PARAMÈTRES", "AJUSTES");
         AddInternational("sec.log", "PROTOKOLL", "JOURNAL", "REGISTRO");
@@ -386,25 +393,54 @@ static class Loc
         AddInternational("st.stopping", "STOPPT", "ARRÊT EN COURS", "DETENIENDO");
         AddInternational("st.absent", "NICHT INSTALLIERT", "NON INSTALLÉ", "SIN INSTALAR");
         AddInternational("st.unknown", "UNBEKANNT", "INCONNU", "DESCONOCIDO");
-        AddInternational("lbl.service", "Dienst", "Service", "Servicio");
-        AddInternational("lbl.engine", "Engine", "Moteur", "Motor");
+        AddInternational("lbl.appVersion", "App-Version", "Version de l’application", "Versión de la aplicación");
+        AddInternational("lbl.engine", "Mitgelieferte Engine", "Moteur fourni", "Motor incluido");
         AddInternational("lbl.profile", "Konfiguration", "Configuration", "Configuración");
         AddInternational("lbl.sites", "Websites", "Sites", "Sitios");
         AddInternational("lbl.entries", "{0} Domains", "{0} domaines", "{0} dominios");
-        AddInternational("btn.install", "Installieren", "Installer", "Instalar");
-        AddInternational("btn.stop", "Stoppen", "Arrêter", "Detener");
-        AddInternational("btn.remove", "Entfernen", "Supprimer", "Desinstalar");
+        AddInternational("btn.install", "Dienst installieren / reparieren", "Installer / réparer le service", "Instalar / reparar el servicio");
+        AddInternational("btn.stop", "Dienst stoppen", "Arrêter le service", "Detener el servicio");
+        AddInternational("btn.remove", "Dienst entfernen", "Supprimer le service", "Desinstalar el servicio");
         AddInternational("btn.test", "Verbindungstest", "Tester la connexion", "Probar conexión");
         AddInternational("btn.list", "Websites", "Liste des sites", "Lista de sitios");
         AddInternational("btn.update", "Updates", "Mises à jour", "Actualizaciones");
-        AddInternational("btn.log", "Protokoll", "Ouvrir le journal", "Abrir registro");
+        AddInternational("btn.log", "Protokoll öffnen", "Ouvrir le journal", "Abrir registro");
+        AddInternational("btn.lang", "Sprache", "Langue", "Idioma");
         AddInternational("chk.watch", "Bei Netzwechsel testen", "Tester après un changement de réseau", "Probar al cambiar de red");
         AddInternational("chk.verify", "Dateiintegrität prüfen", "Vérifier les fichiers", "Verificar archivos");
-        AddInternational("confirm.title", "Entfernen", "Supprimer", "Desinstalar");
-        AddInternational("confirm.remove", "Dienst entfernen und DNS wiederherstellen?", "Supprimer le service et restaurer le DNS ?", "¿Desinstalar el servicio y restaurar el DNS?");
-        AddInternational("hint.ready", "Bereit zur Installation.", "Prêt pour l’installation.", "Listo para instalar.");
-        AddInternational("hint.tip", "Fügen Sie eine Website zur Liste hinzu und installieren Sie den Dienst erneut.", "Ajoutez un site à la liste, puis réinstallez le service.", "Añade un sitio a la lista y vuelve a instalar el servicio.");
+        AddInternational("confirm.title", "DPI Fix deinstallieren", "Désinstaller DPI Fix", "Desinstalar DPI Fix");
+        AddInternational("confirm.remove",
+            "DPI Fix und sein Windows-Dienst werden deinstalliert. Die bisherigen DNS-Einstellungen werden wiederhergestellt. App-Einstellungen, Website-Liste und Protokoll werden gelöscht. Fortfahren?",
+            "DPI Fix et son service Windows seront désinstallés. Les paramètres DNS précédents seront restaurés. Les paramètres de l’application, la liste des sites et le journal seront supprimés. Continuer ?",
+            "Se desinstalarán DPI Fix y su servicio de Windows. Se restaurarán los ajustes de DNS anteriores y se borrarán los ajustes de la aplicación, la lista de sitios y el registro. ¿Continuar?");
+        AddInternational("confirm.serviceRemove",
+            "Der Windows-Dienst und seine Dateien werden entfernt. Die bisherigen DNS-Einstellungen werden wiederhergestellt. Fortfahren?",
+            "Le service Windows et ses fichiers seront supprimés. Les paramètres DNS précédents seront restaurés. Continuer ?",
+            "Se desinstalará el servicio de Windows y se eliminarán sus archivos. Se restaurarán los ajustes de DNS anteriores. ¿Continuar?");
+        AddInternational("service.restart", "Starten Sie Windows neu, um den Dienst vollständig zu entfernen.",
+            "Redémarrez Windows pour terminer la suppression du service.", "Reinicia Windows para terminar de desinstalar el servicio.");
+        AddInternational("hint.tip", "Verwenden Sie „Dienst installieren / reparieren“, um Änderungen an der Website-Liste zu übernehmen.",
+            "Utilisez « Installer / réparer le service » pour appliquer les modifications de la liste des sites.",
+            "Utiliza «Instalar / reparar el servicio» para aplicar los cambios en la lista de sitios.");
         AddInternational("hint.log", "Protokoll: {0}", "Journal : {0}", "Registro: {0}");
+        AddInternational("run.install", "Dienst wird installiert oder repariert…", "Installation ou réparation du service…", "Instalando o reparando el servicio…");
+        AddInternational("run.stop", "Dienst wird gestoppt…", "Arrêt du service…", "Deteniendo el servicio…");
+        AddInternational("run.remove", "Dienst wird entfernt…", "Suppression du service…", "Desinstalando el servicio…");
+        AddInternational("run.test", "Verbindung wird getestet…", "Test de la connexion…", "Probando la conexión…");
+        AddInternational("run.update", "Suche nach Updates…", "Recherche de mises à jour…", "Buscando actualizaciones…");
+        AddInternational("log.trydoh",
+            "Aktivieren Sie DNS-over-HTTPS in den Einstellungen und versuchen Sie es erneut mit „Dienst installieren / reparieren“.",
+            "Activez le DNS-over-HTTPS dans les paramètres, puis réessayez avec « Installer / réparer le service ».",
+            "Activa DNS-over-HTTPS en los ajustes y vuelve a intentarlo con «Instalar / reparar el servicio».");
+        AddInternational("log.done", "Der Dienst läuft auch nach dem Schließen der App weiter.",
+            "Le service est en cours d’exécution et continue de fonctionner après la fermeture de l’application.",
+            "El servicio está en ejecución y seguirá funcionando al cerrar la aplicación.");
+        AddInternational("log.failed", "Der Dienst konnte nicht installiert werden.", "Le service n’a pas pu être installé.", "No se pudo instalar el servicio.");
+        AddInternational("log.removed", "Der Dienst und seine Dateien wurden entfernt.", "Le service et ses fichiers ont été supprimés.", "Se desinstaló el servicio y se eliminaron sus archivos.");
+        AddInternational("log.testfail",
+            "Falls das Problem weiter besteht, ändern Sie die Konfiguration über „Dienst installieren / reparieren“.",
+            "Si le problème persiste, utilisez « Installer / réparer le service » pour modifier la configuration.",
+            "Si el problema persiste, usa «Instalar / reparar el servicio» para cambiar la configuración.");
     }
 
     public static string T(string key)

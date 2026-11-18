@@ -1,5 +1,5 @@
 // DpiFix.cs - arayüz (koyu tema) + komut satırı
-// Arayüz metinleri Ui.cs içindeki Loc ile TR/EN yerelleştirilir.
+// Arayüz metinleri Ui.cs içindeki Loc ile yerelleştirilir.
 using System;
 using System.Diagnostics;
 using System.Drawing;
@@ -54,13 +54,15 @@ class LogoBox : Control
 class MainForm : Form
 {
     TextBox log;
-    Label statusDot, statusText, valService, valEngine, valProfile, valSites;
-    Label secStatus, secActions, secSettings, secLog, lblService, lblEngine, lblProfile, lblSites;
+    Label statusDot, statusText, valAppVersion, valEngine, valProfile, valSites;
+    Label secActions, secSettings, secLog, lblAppVersion, lblEngine, lblProfile, lblSites;
+    Label operationStatus;
     Label title, sub, hint1, hint2;
     FlatButton btnInstall, btnStop, btnRemove, btnTest, btnList, btnUpdate, btnLog, btnLang;
     FlatCheck chkDoh, chkWatch, chkVerify;
     System.Windows.Forms.Timer timer;
     bool busy = false;
+    string lastServiceState;
 
     public MainForm()
     {
@@ -95,7 +97,6 @@ class MainForm : Form
         btnLang = new FlatButton();
         btnLang.Size = new Size(112, 32);
         btnLang.Location = new Point(644, 24);
-        btnLang.AccessibleName = "Language";
         btnLang.Font = Theme.Ui(9f, FontStyle.Bold);
         btnLang.TextColor = Theme.Accent;
         btnLang.BorderColor = Color.FromArgb(0x25, 0x45, 0x48);
@@ -128,19 +129,25 @@ class MainForm : Form
         statusText.AutoSize = true;
         card.Controls.Add(statusText);
 
-        secStatus = SectionLabel(card, 640, 20);
-
-        lblService = KVLabel(card, 18);
-        valService = KVValue(card, 18);
+        lblAppVersion = KVLabel(card, 18);
+        valAppVersion = KVValue(card, 18, 210);
+        valAppVersion.Text = Core.AppVersion;
         lblEngine = KVLabel(card, 240);
-        valEngine = KVValue(card, 240);
+        valEngine = KVValue(card, 240, 168);
+        valEngine.Text = "DPI Fix Engine " + Core.EngineVersion;
         lblProfile = KVLabel(card, 420);
-        valProfile = KVValue(card, 420);
+        valProfile = KVValue(card, 420, 168);
         lblSites = KVLabel(card, 600);
-        valSites = KVValue(card, 600);
+        valSites = KVValue(card, 600, 114);
 
         // ---- işlemler ----
         secActions = SectionLabel(this, 24, 204);
+        operationStatus = new Label();
+        operationStatus.SetBounds(300, 198, 456, 20);
+        operationStatus.TextAlign = ContentAlignment.MiddleRight;
+        operationStatus.Font = Theme.Ui(8.25f, FontStyle.Regular);
+        operationStatus.ForeColor = Theme.Warn;
+        Controls.Add(operationStatus);
 
         btnInstall = MkBtn(24, 222, 232, 40, true);
         btnInstall.Click += ClickInstall;
@@ -209,9 +216,6 @@ class MainForm : Form
 
         LoadUiFromSettings();
         ApplyLanguage();
-        RefreshStatus();
-        LogText("DPI Fix v" + Core.AppVersion + " · DPI Fix Engine " + Core.EngineVersion);
-        LogText(Loc.T("hint.ready"));
     }
 
     // ---------- yardımcılar ----------
@@ -238,13 +242,13 @@ class MainForm : Form
         return l;
     }
 
-    Label KVValue(Control parent, int x)
+    Label KVValue(Control parent, int x, int width)
     {
         Label l = new Label();
         l.Font = Theme.Ui(8.5f, FontStyle.Regular);
         l.ForeColor = Theme.Fg;
-        l.Location = new Point(x, 72);
-        l.AutoSize = true;
+        l.SetBounds(x, 72, width, 20);
+        l.AutoEllipsis = true;
         parent.Controls.Add(l);
         return l;
     }
@@ -298,13 +302,12 @@ class MainForm : Form
     void ApplyLanguage()
     {
         title.Text = Loc.T("app.title");
-        sub.Text = Loc.T("app.sub", Core.EngineVersion);
-        secStatus.Text = Loc.T("sec.status");
+        sub.Text = Loc.T("app.sub");
         secActions.Text = Loc.T("sec.actions");
         secSettings.Text = Loc.T("sec.settings");
         secLog.Text = Loc.T("sec.log");
 
-        lblService.Text = Loc.T("lbl.service");
+        lblAppVersion.Text = Loc.T("lbl.appVersion");
         lblEngine.Text = Loc.T("lbl.engine");
         lblProfile.Text = Loc.T("lbl.profile");
         lblSites.Text = Loc.T("lbl.sites");
@@ -317,6 +320,7 @@ class MainForm : Form
         btnUpdate.Text = Loc.T("btn.update");
         btnLog.Text = Loc.T("btn.log");
         btnLang.Text = Loc.Names[Array.IndexOf(Loc.Codes, Loc.Lang)] + "  ▾";
+        btnLang.AccessibleName = Loc.T("btn.lang");
 
         chkDoh.Text = Loc.T("chk.doh");
         chkWatch.Text = Loc.T("chk.watch");
@@ -350,43 +354,44 @@ class MainForm : Form
     void RefreshStatus(bool details = true)
     {
         string st = Core.State();
-        string txt = Loc.T("st." + st);
-        Color c = st == "running" ? Theme.Ok : (st == "absent" ? Theme.Dim : Theme.Danger);
+        Color c = st == "running" ? Theme.Ok :
+            (st == "starting" || st == "stopping" || st == "unknown" ? Theme.Warn : Theme.Muted);
 
         statusDot.Text = "●";
         statusDot.ForeColor = c;
-        statusText.Text = txt;
+        statusText.Text = Loc.T("app.serviceStatus", Loc.T("st." + st));
         statusText.ForeColor = c;
 
-        valService.Text = txt;
-        valService.ForeColor = c;
-        if (details)
-        {
-            valEngine.Text = "DPI Fix Engine " + Core.EngineVersion;
-            valProfile.Text = Core.CurrentArgsShort();
-            valSites.Text = Loc.T("lbl.entries", Core.BlacklistCount());
-        }
+        if (details || st != lastServiceState)
+            valProfile.Text = st == "absent" ? "—" : Core.CurrentArgsShort();
+        lastServiceState = st;
+        valSites.Text = Loc.T("lbl.entries", Core.BlacklistCount());
 
-        if (!busy) btnStop.Enabled = st == "running" || File.Exists(Core.DnsBackupPath);
+        btnStop.Enabled = !busy && (st == "running" || File.Exists(Core.DnsBackupPath));
+        btnRemove.Enabled = !busy && (st != "absent" || Directory.Exists(Core.ServiceFilesDir) || File.Exists(Core.DnsBackupPath));
+        btnLog.Enabled = File.Exists(Core.LogPath);
     }
 
-    void SetBusy(bool b)
+    void SetOperation(string titleKey)
     {
-        busy = b;
-        btnInstall.Enabled = !b;
-        btnStop.Enabled = !b && (Core.State() == "running" || File.Exists(Core.DnsBackupPath));
-        btnRemove.Enabled = !b;
-        btnTest.Enabled = !b;
-        btnList.Enabled = !b;
-        btnUpdate.Enabled = !b;
-        btnLog.Enabled = !b;
-        btnLang.Enabled = !b;
-        Cursor = b ? Cursors.WaitCursor : Cursors.Default;
+        busy = titleKey != null;
+        operationStatus.Text = busy ? Loc.T(titleKey) : "";
+        btnInstall.Enabled = !busy;
+        btnTest.Enabled = !busy;
+        btnList.Enabled = !busy;
+        btnUpdate.Enabled = !busy;
+        btnLang.Enabled = !busy;
+        chkDoh.Enabled = !busy;
+        chkWatch.Enabled = !busy;
+        chkVerify.Enabled = !busy;
+        Cursor = busy ? Cursors.WaitCursor : Cursors.Default;
+        RefreshStatus(!busy);
     }
 
     void LogText(string s)
     {
         if (InvokeRequired) { BeginInvoke((MethodInvoker)delegate { LogText(s); }); return; }
+        btnLog.Enabled = File.Exists(Core.LogPath);
         log.AppendText(s + "\r\n");
         if (log.TextLength > 48000)
         {
@@ -399,15 +404,14 @@ class MainForm : Form
 
     void RunAsync(string titleKey, Action work)
     {
-        SyncSettingsFromUi();
-        SetBusy(true);
+        SetOperation(titleKey);
         LogText("");
         LogText("── " + Loc.T(titleKey) + " ──");
         ThreadPool.QueueUserWorkItem(delegate
         {
             try { work(); }
-            catch (Exception ex) { LogText("HATA: " + ex.Message); }
-            finally { BeginInvoke((MethodInvoker)delegate { SetBusy(false); RefreshStatus(); }); }
+            catch (Exception ex) { Core.Log(Loc.T("setup.error", ex.Message)); }
+            finally { BeginInvoke((MethodInvoker)delegate { SetOperation(null); }); }
         });
     }
 
@@ -430,9 +434,9 @@ class MainForm : Form
 
     void ClickRemove(object s, EventArgs e)
     {
-        if (MessageBox.Show(Loc.T("confirm.remove"), Loc.T("confirm.title"),
-            MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
-        RunAsync("run.remove", delegate { LogText(Loc.T(Core.Uninstall() ? "setup.restart" : "log.removed")); });
+        if (MessageBox.Show(this, Loc.T("confirm.serviceRemove"), Loc.T("btn.remove"),
+            MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
+        RunAsync("run.remove", delegate { Core.Log(Loc.T(Core.Uninstall(keepAppData: true) ? "service.restart" : "log.removed")); });
     }
 
     void ClickTest(object s, EventArgs e) { RunAsync("run.test", delegate { Core.Test(); }); }
@@ -452,8 +456,8 @@ class MainForm : Form
 
     void ClickOpenLog(object s, EventArgs e)
     {
-        try { Process.Start("explorer.exe", "/select,\"" + Core.LogPath + "\""); }
-        catch (Exception ex) { Core.Log(ex.Message); }
+        try { Process.Start(new ProcessStartInfo(Core.LogPath) { UseShellExecute = true }); }
+        catch (Exception ex) { LogText(Loc.T("setup.error", ex.Message)); }
     }
 
     protected override void OnLoad(EventArgs e)
@@ -495,6 +499,9 @@ static class Program
         Loc.Lang = Core.Lang;
 
         string cmd = args.Length > 0 ? args[0].ToLowerInvariant() : "";
+#if SELFTEST
+        if (cmd.Length == 0) cmd = "--selftest";
+#endif
 
         if (cmd == "--selftest") { Core.SelfTest(); return; }
 

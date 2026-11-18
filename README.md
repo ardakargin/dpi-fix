@@ -22,9 +22,10 @@ Derin Paket İncelemesi (DPI) ve DNS kaynaklı erişim sorunları için açık k
 - **Alan adı kapsamı:** Motor yalnızca listedeki alan adları için tanıyabildiği HTTP veya TLS başlangıç paketlerini işler.
 - **Kalıcı Windows Servisi:** Doğrulanan profil Windows açılışında otomatik çalışır. Beklenmeyen kapanışlarda Windows servis kurtarma ayarları devreye girer.
 - **DNS-over-HTTPS (DoH):** Kurulumda ve Ayarlar’da isteğe bağlıdır. Gerektiğinde Cloudflare DoH, etkin IPv4 bağlantısında denenir. Önceki DNS ve DoH ayarları deneme başarısız olduğunda, servis durdurulurken veya kaldırılırken geri yüklenir.
-- **Bağlantı kontrolü:** Örnek sitelerde HTTPS yanıtlarını motor kapalıyken, profil denemesinde ve servis çalışırken karşılaştırır. Çalışan bir site erişimini kaybederse veya hiçbir hedefte erişim kazanımı ölçülmezse servis otomatik başlangıca alınmaz. Kontrol, listedeki ilk altı geçerli hedef ve üç genel siteyle sınırlıdır.
+- **Bağlantı kontrolü:** Örnek sitelerde HTTPS yanıtlarını motor kapalıyken, profil denemesinde ve servis çalışırken karşılaştırır. Çalışan bir site erişimini kaybederse veya hiçbir hedefte erişim kazanımı ölçülmezse servis otomatik başlangıca alınmaz. Kontrol listedeki ilk altı ayrı hedefi ve dört kontrol sitesini kapsar. TikTok ana sayfası bu kontrollerden biridir. Kullanıcı listeye eklediğinde TikTok da motorun kapsamına girer.
 - **Dil desteği:** Ana pencere Türkçe, İngilizce, Almanca, Fransızca ve İspanyolca. Yeni kurulumlar desteklenen Windows dilini kullanır.
-- **Kurulum:** Kurulum ekranı aynı beş dili sunar ve seçimi uygulamaya aktarır. Varsayılan kurulum uygulamayı yükler. Bağlantıyı sınamak ve uygun servis profilini etkinleştirmek için kurulumdaki ağ seçeneğini işaretleyin veya uygulamada **Kur / Onar** düğmesini kullanın.
+- **Kurulum:** Kurulum ekranı aynı beş dili sunar ve seçimi uygulamaya aktarır. Varsayılan kurulum uygulamayı yükler. Bağlantıyı sınamak ve uygun servis profilini etkinleştirmek için kurulumdaki ağ seçeneğini işaretleyin veya uygulamada **Servisi Kur / Onar** düğmesini kullanın.
+- **Windows’tan kaldırma:** Başlat menüsündeki tek kısayol uygulamayı açar. Uygulamadaki **Servisi Kaldır** düğmesi site listenizi, dil seçiminizi ve günlüğünüzü korur. Uygulamayı ve verilerini tamamen kaldırmak için Windows Ayarlar’da **Yüklü uygulamalar → DPI Fix → Kaldır** yolunu kullanın.
 - **Koyu Modern Tasarım:** Tamamen özel çizilmiş kontroller, canlı durum izleme, log paneli ve koyu başlık çubuğu.
 
 ---

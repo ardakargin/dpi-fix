@@ -24,7 +24,7 @@ static class Core
     public const string SvcDisplay = "DPI Fix";
     public const string SvcDesc = "DPI Fix native engine";
     public const string LegacySvc = "GoodbyeDPI";
-    public const string AppVersion = "2.3.3";
+    public const string AppVersion = "2.3.4";
     public const string EngineVersion = EngineInfo.Version;
     public const string ReleasesApi = "https://api.github.com/repos/ardakargin/dpi-fix/releases/latest";
 
@@ -33,7 +33,8 @@ static class Core
         Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "DpiFix");
     public static string Arch = Environment.Is64BitOperatingSystem ? "x86_64" : "x86";
 
-    public static string PayloadDir { get { return Path.Combine(DataDir, "payload", Arch); } }
+    public static string ServiceFilesDir { get { return Path.Combine(DataDir, "payload"); } }
+    public static string PayloadDir { get { return Path.Combine(ServiceFilesDir, Arch); } }
     public static string ExePath { get { return Path.Combine(PayloadDir, "dpifix-engine.exe"); } }
     public static string BlacklistPath { get { return Path.Combine(DataDir, "blacklist.txt"); } }
     public static string LogPath { get { return Path.Combine(DataDir, "log.txt"); } }
@@ -432,49 +433,61 @@ static class Core
 
     class ProbeTarget
     {
-        public string Host; public bool Must;
+        public string Host;
+        public bool Control;
+        public bool Listed;
         public int Status;
         public string Failure = "timeout";
-        public bool Ok { get { return Status >= 200 && Status < 400; } }
-        public ProbeTarget(string host, bool must) { Host = host; Must = must; }
+        public bool Responded { get { return Status >= 200 && Status < 600; } }
+        public bool Accessible { get { return Status >= 200 && Status < 400; } }
+        public ProbeTarget(string host, bool control, bool listed)
+        {
+            Host = host;
+            Control = control;
+            Listed = listed;
+        }
+
+        public ProbeTarget NewAttempt() { return new ProbeTarget(Host, Control, Listed); }
     }
 
-    // Test hedefleri: 2 zorunlu site + kullanıcının site listesindeki ilk 6 alan adı.
-    // Böylece kullanıcı sorun yaşadığı siteyi listeye eklediğinde prob onu da ölçer.
-    static ProbeTarget[] Targets()
+    static ProbeTarget[] Targets(string blacklist)
     {
         List<ProbeTarget> list = new List<ProbeTarget>();
-        list.Add(new ProbeTarget("www.google.com", true));
-        list.Add(new ProbeTarget("www.youtube.com", true));
-        list.Add(new ProbeTarget("example.com", true));
+        list.Add(new ProbeTarget("www.google.com", true, false));
+        list.Add(new ProbeTarget("www.youtube.com", true, false));
+        list.Add(new ProbeTarget("example.com", true, false));
+        list.Add(new ProbeTarget("www.tiktok.com", true, false));
 
-        string[] bl = ReadBlacklist().Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        string[] bl = blacklist.TrimStart('\uFEFF').Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
         int added = 0;
-        for (int i = 0; i < bl.Length && added < 6; i++)
+        for (int i = 0; i < bl.Length; i++)
         {
             string h = bl[i].Split('#')[0].Trim();
             if (h.StartsWith("*.", StringComparison.Ordinal)) h = h.Substring(2);
+            h = Regex.Replace(h, ":[0-9]+\\z", "");
             h = h.TrimEnd('.');
             if (Uri.CheckHostName(h) != UriHostNameType.Dns || h.IndexOf('.') < 0) continue;
-            bool dup = false;
-            for (int j = 0; j < list.Count; j++)
-                if (string.Equals(list[j].Host, h, StringComparison.OrdinalIgnoreCase)) dup = true;
-            if (dup) continue;
-            list.Add(new ProbeTarget(h, false));
+            foreach (ProbeTarget target in list)
+                if (target.Control && (string.Equals(target.Host, h, StringComparison.OrdinalIgnoreCase) ||
+                    target.Host.EndsWith("." + h, StringComparison.OrdinalIgnoreCase))) target.Listed = true;
+            if (added == 6 || list.Exists(target => string.Equals(target.Host, h, StringComparison.OrdinalIgnoreCase)))
+                continue;
+            list.Add(new ProbeTarget(h, false, true));
             added++;
         }
-        if (added == 0)
+        if (!list.Exists(target => target.Listed))
         {
-            list.Add(new ProbeTarget("discord.com", false));
-            list.Add(new ProbeTarget("www.instagram.com", false));
+            // Optional diagnostics when no valid listed target could be found.
+            list.Add(new ProbeTarget("discord.com", false, false));
+            list.Add(new ProbeTarget("www.instagram.com", false, false));
         }
         return list.ToArray();
     }
 
     static ProbeTarget[] ProbeAll(ProbeTarget[] baseline = null)
     {
-        ProbeTarget[] t = baseline == null ? Targets() :
-            Array.ConvertAll(baseline, delegate(ProbeTarget target) { return new ProbeTarget(target.Host, target.Must); });
+        ProbeTarget[] t = baseline == null ? Targets(ReadBlacklist()) :
+            Array.ConvertAll(baseline, target => target.NewAttempt());
         Thread[] ts = new Thread[t.Length];
         for (int i = 0; i < t.Length; i++)
         {
@@ -487,14 +500,19 @@ static class Core
         for (int i = 0; i < ts.Length; i++)
         {
             int remaining = Math.Max(0, 9000 - (int)deadline.ElapsedMilliseconds);
-            if (!ts[i].Join(remaining)) t[i] = new ProbeTarget(t[i].Host, t[i].Must);
+            if (!ts[i].Join(remaining)) t[i] = t[i].NewAttempt();
         }
         return t;
     }
 
-    static bool Pass(ProbeTarget[] t)
+    static bool ControlResponded(ProbeTarget[] targets)
     {
-        return Array.TrueForAll(t, target => target.Ok);
+        return Array.Exists(targets, target => target.Control && target.Responded);
+    }
+
+    static bool AllAccessible(ProbeTarget[] targets)
+    {
+        return Array.TrueForAll(targets, target => target.Accessible);
     }
 
     static void ProbeHttps(ProbeTarget target, int ms)
@@ -566,7 +584,8 @@ static class Core
             return 0;
         for (int i = 9; i < 12; i++)
             if (prefix[i] < '0' || prefix[i] > '9') return 0;
-        return (prefix[9] - '0') * 100 + (prefix[10] - '0') * 10 + prefix[11] - '0';
+        int status = (prefix[9] - '0') * 100 + (prefix[10] - '0') * 10 + prefix[11] - '0';
+        return status >= 200 && status < 600 ? status : 0;
     }
 
     // DNS önbelleği temizlenmezse test, servis kurulmadan önceki zehirli cevabı okur.
@@ -585,26 +604,25 @@ static class Core
     static string FormatProbe(ProbeTarget target)
     {
         string result = target.Status == 0 ? Loc.T("probe." + target.Failure) : "HTTP " + target.Status;
-        return result + (target.Must ? Loc.T("log.req") : "");
+        return result + (target.Control ? Loc.T("log.req") : "");
     }
 
     static bool PreservesConnectivity(ProbeTarget[] before, ProbeTarget[] after)
     {
-        bool baselineAvailable = false;
+        if (!ControlResponded(before)) return false;
         for (int i = 0; i < before.Length; i++)
         {
-            if (!before[i].Ok) continue;
-            if (before[i].Must) baselineAvailable = true;
-            if (!after[i].Ok) return false;
+            if (before[i].Accessible && !after[i].Accessible) return false;
+            if (before[i].Responded && !after[i].Responded) return false;
         }
-        return baselineAvailable;
+        return true;
     }
 
     static int AccessGain(ProbeTarget[] before, ProbeTarget[] after)
     {
         int gain = 0;
         for (int i = 0; i < before.Length; i++)
-            if (!before[i].Must && !before[i].Ok && after[i].Ok) gain++;
+            if (before[i].Listed && !before[i].Accessible && after[i].Accessible) gain++;
         return gain;
     }
 
@@ -680,6 +698,11 @@ static class Core
                 if (!SupportedWindows())
                     throw new PlatformNotSupportedException("DPI Fix requires x64 Windows.");
                 Log(Loc.T("log.step2"));
+                // Keep the previous profile from starting at boot while it is being revalidated.
+                const int serviceDoesNotExist = 1060;
+                int configResult = Sc("config " + SvcName + " start= demand", out o);
+                if (configResult != 0 && configResult != serviceDoesNotExist)
+                    throw new InvalidOperationException(o);
                 StopService();
                 stopped = true;
                 if (!RestoreDns()) return false;
@@ -702,7 +725,7 @@ static class Core
                 if (args == null)
                 {
                     Log(Loc.T("log.none"));
-                    if (!DohEnabled && Array.Exists(baseline, t => !t.Must && (t.Failure == "dns" || t.Failure == "cert") && t.Status == 0))
+                    if (!DohEnabled && Array.Exists(baseline, t => t.Listed && (t.Failure == "dns" || t.Failure == "cert") && t.Status == 0))
                         Log(Loc.T("log.trydoh"));
                     return false;
                 }
@@ -764,25 +787,36 @@ static class Core
         }) + "\"";
     }
 
-    public static bool Uninstall()
+    public static bool Uninstall(bool keepAppData = false)
     {
         lock (Gate)
         {
+            CheckRemovalDirectory(DataDir);
+            if (keepAppData) CheckRemovalDirectory(ServiceFilesDir);
             string output;
             StopService();
             if (!RestoreDns()) throw new InvalidOperationException("DNS restoration failed. Backup retained.");
             if (State() != "absent" && Sc("delete " + SvcName, out output) != 0)
                 throw new InvalidOperationException(output);
             RemoveOwnedDriver();
-            return Directory.Exists(DataDir) && RemoveDataDirectory(DataDir);
+            string directory = keepAppData ? ServiceFilesDir : DataDir;
+            return Directory.Exists(directory) && RemoveDataDirectory(directory);
         }
+    }
+
+    static void CheckRemovalDirectory(string path)
+    {
+        FileAttributes attributes;
+        try { attributes = File.GetAttributes(path); }
+        catch (FileNotFoundException) { return; }
+        catch (DirectoryNotFoundException) { return; }
+        if ((attributes & FileAttributes.ReparsePoint) != 0)
+            throw new IOException("Refusing to remove redirected DPI Fix directory: " + path);
     }
 
     static bool RemoveDataDirectory(string path)
     {
-        FileAttributes attributes = File.GetAttributes(path);
-        if ((attributes & FileAttributes.ReparsePoint) != 0)
-            throw new IOException("Refusing to remove redirected DPI Fix directory: " + path);
+        CheckRemovalDirectory(path);
         bool delayed = false;
         foreach (string folder in Directory.GetDirectories(path))
             delayed |= RemoveDataDirectory(folder);
@@ -843,7 +877,8 @@ static class Core
         ProbeTarget[] t = ProbeAll();
         LogProbe(t);
         if (State() != "running") Log("   " + Loc.T("log.testwarn"));
-        else if (!Pass(t)) Log("   " + Loc.T("log.testfail"));
+        else if (!ControlResponded(t)) Log("   " + Loc.T("log.testfail"));
+        else if (!AllAccessible(t)) Log("   " + Loc.T("log.testpartial"));
         else Log("   " + Loc.T("log.testok"));
     }
 
@@ -899,9 +934,9 @@ static class Core
             if (State() != "running") return;
             Log(Loc.T("log.netchg"));
             ProbeTarget[] t = ProbeAll();
-            if (Pass(t)) { Log(Loc.T("log.netok")); return; }
+            if (AllAccessible(t)) { Log(Loc.T("log.netok")); return; }
             LogProbe(t);
-            Log(Loc.T("log.netbad"));
+            Log(Loc.T(ControlResponded(t) ? "log.testpartial" : "log.netbad"));
         }
         catch (Exception ex) { Log("Ağ yeniden kontrol hatası: " + ex.Message); }
     }
@@ -925,7 +960,8 @@ static class Core
         ProbeTarget[] t = ProbeAll();
         for (int i = 0; i < t.Length; i++)
             sb.AppendLine("net." + t[i].Host + "=" + FormatProbe(t[i]));
-        sb.AppendLine("pass=" + Pass(t));
+        sb.AppendLine("controlResponded=" + ControlResponded(t));
+        sb.AppendLine("pass=" + AllAccessible(t));
         sb.AppendLine("resCount=" + AllResources.Length);
         sb.AppendLine("embeddedVerify=" + VerifyEmbedded());
         File.WriteAllText(Path.Combine(Path.GetTempPath(), "dpifix-selftest.txt"), sb.ToString());

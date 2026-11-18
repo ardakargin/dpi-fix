@@ -131,16 +131,35 @@ mod tests {
 
     fn request(host: &str) -> Vec<u8> {
         let payload = format!("GET / HTTP/1.1\r\nHost: {host}\r\n\r\n");
+        tcp_packet(80, payload.as_bytes())
+    }
+
+    fn tcp_packet(port: u16, payload: &[u8]) -> Vec<u8> {
         let mut bytes = vec![0; 40];
         bytes[0] = 0x45;
         bytes[9] = 6;
-        bytes[23] = 80;
+        bytes[22..24].copy_from_slice(&port.to_be_bytes());
         bytes[32] = 0x50;
         bytes[33] = 0x18;
-        bytes.extend_from_slice(payload.as_bytes());
+        bytes.extend_from_slice(payload);
         let length = bytes.len() as u16;
         bytes[2..4].copy_from_slice(&length.to_be_bytes());
         bytes
+    }
+
+    #[test]
+    fn leaves_tiktok_tls_untouched_unless_explicitly_listed() {
+        let mut engine = Engine {
+            config: Config { domains: PathBuf::new(), http: false },
+            hosts: HostList::parse("discord.com\ninstagram.com\nx.com"),
+            dll_dir: None,
+        };
+        let hello = sniff::tests::client_hello("www.tiktok.com");
+        let mut bytes = tcp_packet(443, &hello);
+        let packet = Packet::parse(&mut bytes).unwrap();
+        assert!(engine.plan(&packet).is_none());
+        engine.hosts = HostList::parse("tiktok.com");
+        assert!(engine.plan(&packet).is_some());
     }
 
     #[test]

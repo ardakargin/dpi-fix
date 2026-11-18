@@ -15,7 +15,10 @@ static class SetupCore
     public const string AppName = "DPI Fix";
     public const string Pub = "DpiFix";
     public const string DisplayVer = Core.AppVersion;
+    public const string UninstallArgument = "--uninstall";
+    public const string UninstallUiArgument = "--uninstall-ui";
     const string ResApp = "payload_app";
+    const string UninstallKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\DpiFix";
 
     public static string TargetDir
     {
@@ -24,14 +27,12 @@ static class SetupCore
     public static string TargetExe { get { return Path.Combine(TargetDir, "DpiFix.exe"); } }
     public static string TargetSetup { get { return Path.Combine(TargetDir, "Kurulum.exe"); } }
 
-    public static string StartMenuDir
+    static string StartMenuDir
     {
-        get
-        {
-            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu),
-                "Programs");
-        }
+        get { return Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms); }
     }
+    static string AppShortcut { get { return Path.Combine(StartMenuDir, AppName + ".lnk"); } }
+    static string LegacyUninstallShortcut { get { return Path.Combine(StartMenuDir, AppName + " Kaldir.lnk"); } }
 
     public static Action<string> Sink;
 
@@ -119,41 +120,90 @@ static class SetupCore
     }
 
     // ---- kısayol (WScript.Shell, harici bağımlılık yok) ----
-    static void Shortcut(string lnkPath, string target, string args, string desc)
+    static void CreateAppShortcut()
     {
-        try
-        {
-            object shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell"));
-            object lnk = shell.GetType().InvokeMember("CreateShortcut", BindingFlags.InvokeMethod,
-                null, shell, new object[] { lnkPath });
-            Type t = lnk.GetType();
-            t.InvokeMember("TargetPath", BindingFlags.SetProperty, null, lnk, new object[] { target });
-            t.InvokeMember("WorkingDirectory", BindingFlags.SetProperty, null, lnk,
-                new object[] { Path.GetDirectoryName(target) });
-            t.InvokeMember("Description", BindingFlags.SetProperty, null, lnk, new object[] { desc });
-            if (args != null && args.Length > 0)
-                t.InvokeMember("Arguments", BindingFlags.SetProperty, null, lnk, new object[] { args });
-            t.InvokeMember("Save", BindingFlags.InvokeMethod, null, lnk, null);
-            Log(Loc.T("setup.shortcut", Path.GetFileName(lnkPath)));
-        }
-        catch (Exception ex) { Log(Loc.T("setup.error", ex.Message)); }
+        object shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell", true));
+        object lnk = shell.GetType().InvokeMember("CreateShortcut", BindingFlags.InvokeMethod,
+            null, shell, new object[] { AppShortcut });
+        Type t = lnk.GetType();
+        t.InvokeMember("TargetPath", BindingFlags.SetProperty, null, lnk, new object[] { TargetExe });
+        t.InvokeMember("WorkingDirectory", BindingFlags.SetProperty, null, lnk, new object[] { TargetDir });
+        t.InvokeMember("Description", BindingFlags.SetProperty, null, lnk, new object[] { AppName });
+        t.InvokeMember("Arguments", BindingFlags.SetProperty, null, lnk, new object[] { "" });
+        t.InvokeMember("Save", BindingFlags.InvokeMethod, null, lnk, null);
+        Log(Loc.T("setup.shortcut", Path.GetFileName(AppShortcut)));
     }
 
-    static string UninstallKey { get { return @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\DpiFix"; } }
-
-    public static void WriteRegistry()
+    static void WriteRegistry()
     {
-        using (RegistryKey key = Registry.LocalMachine.CreateSubKey(UninstallKey))
+        using (RegistryKey machine = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64))
+        using (RegistryKey key = machine.CreateSubKey(UninstallKey))
         {
             key.SetValue("DisplayName", AppName);
             key.SetValue("DisplayVersion", DisplayVer);
             key.SetValue("Publisher", Pub);
-            key.SetValue("DisplayIcon", TargetExe);
+            key.SetValue("DisplayIcon", "\"" + TargetExe + "\",0");
             key.SetValue("InstallLocation", TargetDir);
             key.SetValue("NoModify", 1);
             key.SetValue("NoRepair", 1);
-            key.SetValue("UninstallString", "\"" + TargetSetup + "\" --uninstall");
-            key.SetValue("EstimatedSize", 1200, RegistryValueKind.DWord);
+            key.SetValue("UninstallString", "\"" + TargetSetup + "\" " + UninstallUiArgument);
+            key.SetValue("QuietUninstallString", "\"" + TargetSetup + "\" " + UninstallArgument);
+            long size = new FileInfo(TargetExe).Length + new FileInfo(TargetSetup).Length;
+            key.SetValue("EstimatedSize", (int)((size + 1023) / 1024), RegistryValueKind.DWord);
+        }
+    }
+
+    static void DeleteRegistration(RegistryView view)
+    {
+        using (RegistryKey machine = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view))
+            machine.DeleteSubKeyTree(UninstallKey, false);
+    }
+
+    public static bool PendingRemoval()
+    {
+        using (RegistryKey session = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Session Manager"))
+        {
+            if (session == null) return false;
+            var operations = session.GetValue("PendingFileRenameOperations") as string[];
+            return HasPendingRemoval(operations);
+        }
+    }
+
+    static bool HasPendingRemoval(string[] operations)
+    {
+        if (operations == null) return false;
+        for (int i = 0; i < operations.Length; i += 2)
+        {
+            // The last empty destination may be read as the multi-string terminator.
+            if (i + 1 < operations.Length && operations[i + 1].Length != 0) continue;
+            string source = operations[i];
+            if (source.StartsWith(@"\??\", StringComparison.Ordinal)) source = source.Substring(4);
+            if (IsInDirectory(source, TargetDir) || IsInDirectory(source, Core.DataDir)) return true;
+        }
+        return false;
+    }
+
+    static bool IsInDirectory(string path, string directory)
+    {
+        return String.Equals(path, directory, StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith(directory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+    }
+
+    static bool RemoveInstalledExecutable(string path)
+    {
+        try { return Core.RemoveOwnedFile(path); }
+        catch (UnauthorizedAccessException)
+        {
+            // Windows denies deletion of an executable while its image is loaded.
+            string retired = path + "." + Guid.NewGuid().ToString("N") + ".removed";
+            File.Move(path, retired);
+            try { Core.QueueRemoval(retired); }
+            catch
+            {
+                File.Move(retired, path);
+                throw;
+            }
+            return true;
         }
     }
 
@@ -198,16 +248,16 @@ static class SetupCore
     static bool InstallCore(bool runServiceInstall, bool tryDoh)
     {
         if (!Core.SupportedWindows()) throw new PlatformNotSupportedException(Loc.T("setup.arch"));
+        if (PendingRemoval()) throw new InvalidOperationException(Loc.T("setup.restart"));
         Log(Loc.T("setup.installing"));
         InstallFiles();
         Core.LoadSettings();
         Core.Lang = Loc.Lang;
         Core.SaveSettings();
 
-        Shortcut(Path.Combine(StartMenuDir, AppName + ".lnk"), TargetExe, "", AppName + " - DPI/DNS zorlamasi kaldirici");
-        Shortcut(Path.Combine(StartMenuDir, AppName + " Kaldir.lnk"), TargetSetup, "--uninstall", AppName + " kaldir");
-
-        WriteRegistry();
+        CreateAppShortcut();
+        File.Delete(LegacyUninstallShortcut);
+        DeleteRegistration(RegistryView.Registry32);
 
         if (runServiceInstall)
         {
@@ -238,16 +288,22 @@ static class SetupCore
         Core.Sink = Log;
         bool delayed = Core.Uninstall();
 
-        File.Delete(Path.Combine(StartMenuDir, AppName + ".lnk"));
-        File.Delete(Path.Combine(StartMenuDir, AppName + " Kaldir.lnk"));
-        Registry.LocalMachine.DeleteSubKeyTree(UninstallKey, false);
+        File.Delete(AppShortcut);
+        File.Delete(LegacyUninstallShortcut);
 
-        delayed |= Core.RemoveOwnedFile(TargetExe);
-        delayed |= Core.RemoveOwnedFile(TargetSetup);
-        if (Directory.Exists(TargetDir) && Directory.GetFileSystemEntries(TargetDir).Length == 0)
-            Directory.Delete(TargetDir);
-        else if (delayed && Directory.GetFileSystemEntries(TargetDir).Length <= 2)
-            Core.QueueRemoval(TargetDir);
+        if (Directory.Exists(TargetDir))
+        {
+            bool appDelayed = RemoveInstalledExecutable(TargetExe);
+            bool setupDelayed = RemoveInstalledExecutable(TargetSetup);
+            string[] remaining = Directory.GetFileSystemEntries(TargetDir);
+            if (remaining.Length == 0) Directory.Delete(TargetDir);
+            else if (remaining.Length == (appDelayed ? 1 : 0) + (setupDelayed ? 1 : 0))
+                Core.QueueRemoval(TargetDir);
+            delayed |= appDelayed || setupDelayed;
+        }
+
+        DeleteRegistration(RegistryView.Registry32);
+        DeleteRegistration(RegistryView.Registry64);
 
         Log(Loc.T(delayed ? "setup.restart" : "setup.removed"));
         return delayed;
@@ -282,11 +338,13 @@ class SetupForm : Form
     readonly CheckBox network, doh;
     readonly ComboBox language;
     readonly Label title, location, status, activity;
+    readonly bool uninstallOnly;
     bool busy;
     string statusKey;
 
-    public SetupForm()
+    public SetupForm(bool uninstallOnly)
     {
+        this.uninstallOnly = uninstallOnly;
         ClientSize = new Size(674, 500);
         MinimumSize = new Size(630, 465);
         StartPosition = FormStartPosition.CenterScreen;
@@ -347,7 +405,20 @@ class SetupForm : Form
         };
         AddWide(layout, log, 7);
 
-        statusKey = SetupCore.Installed() ? "setup.installed" : "setup.ready";
+        if (uninstallOnly)
+        {
+            network.Hide();
+            doh.Hide();
+            actions.Hide();
+            AcceptButton = null;
+            statusKey = "setup.removing";
+            Shown += delegate { RunRemoval(); };
+        }
+        else
+        {
+            statusKey = SetupCore.PendingRemoval() ? "setup.restart" :
+                SetupCore.Installed() ? "setup.installed" : "setup.ready";
+        }
         language.SelectedIndexChanged += delegate { Loc.Lang = Loc.Codes[language.SelectedIndex]; ApplyLanguage(); };
         SetupCore.Sink = Log;
         ApplyLanguage();
@@ -366,7 +437,7 @@ class SetupForm : Form
 
     void ApplyLanguage()
     {
-        Text = title.Text = Loc.T("setup.title");
+        Text = title.Text = uninstallOnly ? SetupCore.AppName : Loc.T("setup.title");
         location.Text = Loc.T("setup.location", SetupCore.TargetDir);
         status.Text = Loc.T(statusKey);
         install.Text = Loc.T(SetupCore.Installed() ? "setup.repair" : "setup.install");
@@ -384,7 +455,7 @@ class SetupForm : Form
         install.Enabled = !active && statusKey != "setup.restart";
         language.Enabled = !active;
         network.Enabled = install.Enabled;
-        doh.Enabled = !active && network.Checked;
+        doh.Enabled = install.Enabled && network.Checked;
         bool installed = SetupCore.Installed();
         remove.Enabled = open.Enabled = !active && installed && statusKey != "setup.restart";
         UseWaitCursor = active;
@@ -409,6 +480,8 @@ class SetupForm : Form
             BeginInvoke((MethodInvoker)delegate
             {
                 statusKey = result;
+                if (uninstallOnly)
+                    Environment.ExitCode = result == "setup.restart" ? 3010 : result == "setup.failed" ? 1 : 0;
                 status.ForeColor = result == "setup.failed" || result == "setup.appOnly" ? Theme.Warn : Theme.Accent;
                 SetBusy(false);
                 ApplyLanguage();
@@ -430,6 +503,11 @@ class SetupForm : Form
     {
         if (MessageBox.Show(Loc.T("confirm.remove"), Loc.T("confirm.title"),
             MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+        RunRemoval();
+    }
+
+    void RunRemoval()
+    {
         Run("setup.removing", delegate { return SetupCore.Uninstall() ? "setup.restart" : "setup.removed"; });
     }
 
@@ -449,7 +527,7 @@ static class SetupProgram
         Loc.Lang = Core.Lang;
         string cmd = args.Length > 0 ? args[0].ToLowerInvariant() : "";
 
-        if (cmd == "--uninstall")
+        if (cmd == SetupCore.UninstallArgument)
         {
             SetupCore.Sink = delegate (string s) { try { Console.WriteLine(s); } catch { } };
             try { if (SetupCore.Uninstall()) Environment.ExitCode = 3010; }
@@ -467,6 +545,6 @@ static class SetupProgram
 
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
-        Application.Run(new SetupForm());
+        Application.Run(new SetupForm(cmd == SetupCore.UninstallUiArgument));
     }
 }
